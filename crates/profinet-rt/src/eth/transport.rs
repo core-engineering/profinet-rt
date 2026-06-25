@@ -9,7 +9,7 @@ pub enum TransportError {
 }
 
 /// Abstraction d'E/S de trames Ethernet brutes (en-tête L2 inclus).
-pub trait EthTransport {
+pub trait EthTransport: Send + Sync {
     fn send(&self, frame: &[u8]) -> Result<(), TransportError>;
     /// Renvoie `Ok(None)` si aucune trame n'est disponible avant `timeout`.
     fn recv(&self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError>;
