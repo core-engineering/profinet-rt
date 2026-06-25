@@ -1,0 +1,15 @@
+[package]
+name = "profinet-rt"
+version = "0.0.0"
+description = "PROFINET RT IO-Device stack in pure Rust (community, not affiliated with PI)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+nix = { version = "0.27", default-features = false, features = ["net", "socket"] }
+thiserror = "1"
+
+[dev-dependencies]
+pcap-file = "2"
