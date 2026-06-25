@@ -4,6 +4,7 @@
 //! International. « PROFINET » est une marque déposée de PNO.
 
 pub mod capture;
+pub mod data;
 pub mod eth;
 
 /// Version de la crate (smoke test des fondations).
