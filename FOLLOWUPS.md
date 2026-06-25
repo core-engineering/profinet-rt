@@ -21,6 +21,19 @@ Findings non bloquants pour le Plan 1, à intégrer dans les briefs des plans co
   Surfacer l'erreur (champ `last_error` ou variante) avant d'utiliser le harnais pour des
   assertions frame-exact.
 
+## Pour le Plan 6 (`config` / GSDML / API typée)
+- **Valider l'ordre des bits BOOL (LSB-first)** : `data::get_bit`/`set_bit` packent le bit
+  `i` → octet `i/8`, masque `1 << (i % 8)` (convention Siemens `byte.0` = LSB). Choix dérivé
+  de l'adressage TIA mais **non vérifié sur le fil**. Avant le premier échange cyclique réel,
+  confronter à une **capture S7-1500** et au **GSDML d'exemple** (16 REAL + 32 BOOL) que le
+  mapping déclaration→(octet, bit) ET l'ordre des bits coïncident. Ajouter un vecteur de test
+  issu de la capture.
+- **`data::Value` en attente d'usage** : l'enum `Value` est une déclaration anticipée (aucun
+  constructeur/consommateur pour l'instant). Le Plan 6 doit soit le câbler (dispatch typé
+  `encode(Value)->bytes` / `decode(FieldType,&[u8])->Value`), soit le retirer (YAGNI).
+- **Cohérence de nommage `Field`/`FieldType`** : l'esquisse d'API de la spec (§5.4) utilise
+  `Field::Real`, le code utilise `FieldType::Real`. À réconcilier au Plan 6.
+
 ## Doc
 - **Contrat de `recv`** : documenter au niveau du trait `EthTransport` les cas légitimes de
   `Ok(None)` (file vide pour le mock ; pas de trame avant timeout ; trame non-PROFINET pour
