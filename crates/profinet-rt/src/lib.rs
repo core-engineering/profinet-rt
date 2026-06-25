@@ -3,6 +3,8 @@
 //! Projet communautaire, NON affilié à / approuvé par PROFIBUS & PROFINET
 //! International. « PROFINET » est une marque déposée de PNO.
 
+pub mod eth;
+
 /// Version de la crate (smoke test des fondations).
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
