@@ -90,6 +90,36 @@ fn take<const N: usize>(b: &[u8]) -> Result<[u8; N], CodecError> {
     Ok(a)
 }
 
+/// Lit le bit d'indice `bit` (LSB-first : octet `bit/8`, masque `1 << (bit % 8)`).
+pub fn get_bit(buf: &[u8], bit: usize) -> Result<bool, CodecError> {
+    let byte = bit / 8;
+    if byte >= buf.len() {
+        return Err(CodecError::BitOutOfRange {
+            bit,
+            bytes: buf.len(),
+        });
+    }
+    Ok((buf[byte] >> (bit % 8)) & 1 == 1)
+}
+
+/// Écrit le bit d'indice `bit` (même convention que `get_bit`).
+pub fn set_bit(buf: &mut [u8], bit: usize, value: bool) -> Result<(), CodecError> {
+    let byte = bit / 8;
+    if byte >= buf.len() {
+        return Err(CodecError::BitOutOfRange {
+            bit,
+            bytes: buf.len(),
+        });
+    }
+    let mask = 1u8 << (bit % 8);
+    if value {
+        buf[byte] |= mask;
+    } else {
+        buf[byte] &= !mask;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +180,49 @@ mod tests {
         assert_eq!(FieldType::Word.byte_len(), Some(2));
         assert_eq!(FieldType::Dint.byte_len(), Some(4));
         assert_eq!(FieldType::Real.byte_len(), Some(4));
+    }
+
+    #[test]
+    fn set_and_get_bits_lsb_first() {
+        let mut buf = [0u8; 4]; // 32 bits
+
+        // bit 0 = LSB de l'octet 0
+        set_bit(&mut buf, 0, true).unwrap();
+        assert_eq!(buf[0], 0b0000_0001);
+        // bit 7 = MSB de l'octet 0
+        set_bit(&mut buf, 7, true).unwrap();
+        assert_eq!(buf[0], 0b1000_0001);
+        // bit 8 = LSB de l'octet 1
+        set_bit(&mut buf, 8, true).unwrap();
+        assert_eq!(buf[1], 0b0000_0001);
+        // bit 31 = MSB de l'octet 3
+        set_bit(&mut buf, 31, true).unwrap();
+        assert_eq!(buf[3], 0b1000_0000);
+
+        for &(i, expected) in &[(0, true), (1, false), (7, true), (8, true), (31, true)] {
+            assert_eq!(get_bit(&buf, i).unwrap(), expected, "bit {i}");
+        }
+    }
+
+    #[test]
+    #[allow(clippy::bool_assert_comparison)]
+    fn clearing_a_bit() {
+        let mut buf = [0xFFu8; 1];
+        set_bit(&mut buf, 3, false).unwrap();
+        assert_eq!(buf[0], 0b1111_0111);
+        assert_eq!(get_bit(&buf, 3).unwrap(), false);
+    }
+
+    #[test]
+    fn bit_out_of_range_errors() {
+        let mut buf = [0u8; 1]; // 8 bits valides : 0..=7
+        assert_eq!(
+            get_bit(&buf, 8),
+            Err(CodecError::BitOutOfRange { bit: 8, bytes: 1 })
+        );
+        assert_eq!(
+            set_bit(&mut buf, 8, true),
+            Err(CodecError::BitOutOfRange { bit: 8, bytes: 1 })
+        );
     }
 }
