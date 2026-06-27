@@ -5,6 +5,7 @@
 
 pub mod capture;
 pub mod data;
+pub mod dcp;
 pub mod eth;
 
 /// Version de la crate (smoke test des fondations).
