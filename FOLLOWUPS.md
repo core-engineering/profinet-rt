@@ -38,3 +38,27 @@ Findings non bloquants pour le Plan 1, à intégrer dans les briefs des plans co
 - **Contrat de `recv`** : documenter au niveau du trait `EthTransport` les cas légitimes de
   `Ok(None)` (file vide pour le mock ; pas de trame avant timeout ; trame non-PROFINET pour
   le backend) pour un modèle mental partagé.
+
+## Pour les plans DCP ultérieurs (issus de la revue de branche Plan dcp)
+
+### Important — réponse Identify trop large (à traiter avant un segment multi-device)
+- `dcp::identify::parse_identify_request` ne lit que le bloc **NameOfStation** (2,2). Un Identify
+  *par DeviceID/IP/alias* ciblant un AUTRE device n'a pas de bloc nom → `name_of_station = None`
+  → `handle_dcp_frame` répond quand même (over-response). OK en mono-device (banc actuel), à
+  corriger avant multi-device : matcher TOUS les blocs filtres, ou être conservateur (si un bloc
+  filtre non-nom est présent et que le nom ne matche pas → `Ok(None)`). Cohérent avec la portée
+  planifiée de `IdentifyFilter` ; décision de priorisation = Camille.
+
+### Minor (revue de branche, non bloquants)
+- `DcpError::BadFrameId` défini mais jamais construit (FrameID inconnu → `Ok(None)` via `_`). À
+  câbler ou retirer.
+- `DCP_MULTICAST_MAC` (frame.rs) et le futur chemin d'émission pas encore utilisés ; pas de
+  `pub use` au niveau `dcp::` (la spec mentionnait des re-exports).
+- `block_len as u16` (block.rs) sans garde overflow (inoffensif < MTU ; `debug_assert!` possible).
+- `DeviceRole` encodé en u16 (role+reserved) — byte-exact vs golden (role=0) ; revérifier si role≠0.
+- Couverture : `to_u16` GetSet/Hello, chemins d'erreur `from_u8`/`from_u16`, branche `TooShort`
+  bloc tronqué — non testés (arms triviaux).
+
+### Politique d'erreur RX (recommandation revue)
+- `handle_dcp_frame` renvoie `Err` sur trame malformée/courte ; une vraie boucle RX doit
+  **logger+drop** plutôt que propager. À documenter côté appelant (Plan 3/4).

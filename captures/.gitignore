@@ -1,0 +1,5 @@
+# Captures Wireshark : volumineuses + reproductibles → hors git (risque corruption WSL/NTFS, pas de remote).
+# Les octets de référence (golden frames) sont figés dans docs/dcp-golden-frames.md et dans les tests.
+*.pcapng
+*.pcap
+!.gitignore
