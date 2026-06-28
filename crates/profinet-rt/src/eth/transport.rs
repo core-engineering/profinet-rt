@@ -16,7 +16,8 @@ pub trait EthTransport: Send + Sync {
     ///
     /// Returns `Ok(None)` in three legitimate, non-error cases:
     /// - the queue is empty (e.g. `MockTransport` with nothing pushed);
-    /// - no frame arrived before `timeout` elapsed;
+    /// - no frame arrived before `timeout` elapsed (note: `AfPacketTransport` does
+    ///   not yet honor `timeout` and blocks until a frame arrives — deferred to Plan 4);
     /// - the backend filters non-PROFINET traffic and the next frame on the wire
     ///   was not PROFINET (e.g. `AfPacketTransport`).
     ///
