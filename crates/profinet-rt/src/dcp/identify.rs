@@ -192,6 +192,7 @@ mod tests {
         let f = parse_identify_request(&[0x02, 0x03, 0x00, 0x04, 0x00, 0x2a, 0x01, 0x0e]).unwrap();
         assert_eq!(f.name_of_station, None);
         assert_eq!(f.other_filters, vec![(2, 3)]);
+        assert!(!f.all_selector);
     }
 
     #[test]

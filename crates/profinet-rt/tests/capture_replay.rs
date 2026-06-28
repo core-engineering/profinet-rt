@@ -9,6 +9,10 @@ fn replay_fixture_if_present() {
         eprintln!("pas de fixture sample.pcap — test ignoré");
         return;
     }
-    let n = PcapFrames::open(p).unwrap().count();
+    let frames: Vec<Vec<u8>> = PcapFrames::open(p)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let n = frames.len();
     assert!(n > 0, "le pcap fixture ne doit pas être vide");
 }

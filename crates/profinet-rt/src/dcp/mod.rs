@@ -166,4 +166,11 @@ mod dispatch_tests {
         let f = req_frame(&[0x02, 0x03, 0x00, 0x04, 0x00, 0x2a, 0x01, 0x0e]);
         assert_eq!(handle_dcp_frame(&f, &cfg()).unwrap(), None);
     }
+
+    #[test]
+    fn ignores_empty_identify_request() {
+        // No filter blocks at all -> not identify-all (that needs an explicit AllSelector) -> silent.
+        let f = req_frame(&[]);
+        assert_eq!(handle_dcp_frame(&f, &cfg()).unwrap(), None);
+    }
 }
