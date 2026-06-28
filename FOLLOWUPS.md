@@ -16,8 +16,9 @@ Non-blocking findings for Plan 1, to be integrated into the briefs of the releva
 - ✅ **RESOLVED (merge ba63901)** — **Typed `CaptureError`**: `Io(#[from] std::io::Error)` +
   `Pcap(#[from] pcap_file::PcapError)` + `UnknownFormat([u8;4])`. **`PcapFrames` reads both
   pcap and pcapng** (magic auto-detection) and the iterator returns
-  `Result<Vec<u8>, CaptureError>` (no more swallowing). Remaining: apply the same treatment
-  to **`TransportError::Io(String)`** (module `eth`) for cross-module consistency — NOT done.
+  `Result<Vec<u8>, CaptureError>` (no more swallowing). ✅ **`TransportError::Io` now typed**
+  too (merge f4de284): `Io(#[from] std::io::Error)` + `From<nix::errno::Errno>` in the
+  AF_PACKET backend — cross-module consistency done.
 
 ## For Plan 6 (`config` / GSDML / typed API)
 - **Validate BOOL bit ordering (LSB-first)**: `data::get_bit`/`set_bit` pack bit `i` →
@@ -33,9 +34,9 @@ Non-blocking findings for Plan 1, to be integrated into the briefs of the releva
   `Field::Real`, the code uses `FieldType::Real`. To be reconciled in Plan 6.
 
 ## Doc
-- **`recv` contract**: document at the `EthTransport` trait level the legitimate `Ok(None)`
-  cases (empty queue for the mock; no frame before timeout; non-PROFINET frame for the
-  backend) for a shared mental model.
+- ✅ **RESOLVED (merge f4de284)** — **`recv` contract**: the `EthTransport::recv` trait doc now
+  enumerates the legitimate `Ok(None)` cases (empty queue; no frame before timeout — with a note
+  that `AfPacketTransport` does not yet honor `timeout`; non-PROFINET frame for the backend).
 
 ## For subsequent DCP plans (from Plan dcp branch review)
 
