@@ -4,6 +4,12 @@ pub mod block;
 pub mod frame;
 pub mod identify;
 
+pub use block::{parse_blocks, write_blocks, DcpBlock};
+pub use frame::{DcpHeader, FrameId, ServiceId, ServiceType, DCP_MULTICAST_MAC};
+pub use identify::{
+    build_identify_response, parse_identify_request, DeviceProperties, IdentifyFilter,
+};
+
 use thiserror::Error;
 
 /// Errors from parsing/serializing DCP frames.
@@ -15,14 +21,10 @@ pub enum DcpError {
     BadServiceId(u8),
     #[error("unknown DCP service type {0}")]
     BadServiceType(u8),
-    #[error("unknown DCP frame id {0:#06x}")]
-    BadFrameId(u16),
     #[error("malformed DCP frame: {0}")]
     Malformed(&'static str),
 }
 
-use crate::dcp::frame::{DcpHeader, FrameId};
-use crate::dcp::identify::{build_identify_response, parse_identify_request, DeviceProperties};
 use crate::eth::{EthHeader, MacAddr, ETHERTYPE_PROFINET};
 
 /// Identity + address this device answers DCP for.

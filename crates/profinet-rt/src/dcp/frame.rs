@@ -188,4 +188,31 @@ mod tests {
             Err(DcpError::TooShort { .. })
         ));
     }
+
+    #[test]
+    fn frameid_to_u16_all_variants() {
+        assert_eq!(FrameId::IdentifyRequest.to_u16(), 0xfefe);
+        assert_eq!(FrameId::GetSet.to_u16(), 0xfefd);
+        assert_eq!(FrameId::Hello.to_u16(), 0xfefc);
+    }
+
+    #[test]
+    fn service_enums_reject_unknown() {
+        assert_eq!(ServiceId::from_u8(7), Err(DcpError::BadServiceId(7)));
+        assert_eq!(ServiceType::from_u8(9), Err(DcpError::BadServiceType(9)));
+    }
+
+    #[test]
+    fn parse_truncated_block_data_is_too_short() {
+        // valid 10-byte header claims DCPDataLength=12 but only 4 block bytes follow
+        let buf = &[
+            0x05, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+            0x0c, // header, data_length=12
+            0x02, 0x02, 0x00, 0x08, // only 4 of 12 block bytes
+        ];
+        assert!(matches!(
+            DcpHeader::parse(buf),
+            Err(DcpError::TooShort { need: 22, have: 14 })
+        ));
+    }
 }

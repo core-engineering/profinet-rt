@@ -60,6 +60,10 @@ pub fn write_blocks(blocks: &[DcpBlock], out: &mut Vec<u8>) {
     for b in blocks {
         let info_len = if b.block_info.is_some() { 2 } else { 0 };
         let block_len = info_len + b.value.len();
+        debug_assert!(
+            block_len <= u16::MAX as usize,
+            "DCP block exceeds u16 length: {block_len}"
+        );
         out.push(b.option);
         out.push(b.suboption);
         out.extend_from_slice(&(block_len as u16).to_be_bytes());
@@ -81,6 +85,10 @@ pub fn blocks_encoded_len(blocks: &[DcpBlock]) -> u16 {
         let block_len = info_len + b.value.len();
         total += 4 + block_len + (block_len & 1);
     }
+    debug_assert!(
+        total <= u16::MAX as usize,
+        "DCP blocks exceed u16 length: {total}"
+    );
     total as u16
 }
 
