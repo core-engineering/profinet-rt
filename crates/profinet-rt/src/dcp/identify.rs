@@ -9,6 +9,10 @@ use crate::eth::{EthHeader, MacAddr, ETHERTYPE_PROFINET};
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IdentifyFilter {
     pub name_of_station: Option<String>,
+    /// AllSelector block (option 0xff, suboption 0xff) present.
+    pub all_selector: bool,
+    /// Filter blocks present that are neither NameOfStation nor AllSelector.
+    pub other_filters: Vec<(u8, u8)>,
 }
 
 /// Parse the block bytes of an Identify request (filter blocks, no BlockInfo).
@@ -16,10 +20,14 @@ pub fn parse_identify_request(block_bytes: &[u8]) -> Result<IdentifyFilter, DcpE
     let blocks = parse_blocks(block_bytes, false)?;
     let mut filter = IdentifyFilter::default();
     for b in blocks {
-        if (b.option, b.suboption) == (2, 2) {
-            let name = String::from_utf8(b.value)
-                .map_err(|_| DcpError::Malformed("NameOfStation not UTF-8"))?;
-            filter.name_of_station = Some(name);
+        match (b.option, b.suboption) {
+            (2, 2) => {
+                let name = String::from_utf8(b.value)
+                    .map_err(|_| DcpError::Malformed("NameOfStation not UTF-8"))?;
+                filter.name_of_station = Some(name);
+            }
+            (0xff, 0xff) => filter.all_selector = true,
+            other => filter.other_filters.push(other),
         }
     }
     Ok(filter)
@@ -166,6 +174,25 @@ mod tests {
     fn parse_request_filter_name() {
         let f = parse_identify_request(REQ_BLOCKS).unwrap();
         assert_eq!(f.name_of_station.as_deref(), Some("i-device"));
+        assert!(!f.all_selector);
+        assert!(f.other_filters.is_empty());
+    }
+
+    #[test]
+    fn parse_all_selector() {
+        // AllSelector: option 0xff suboption 0xff, length 0
+        let f = parse_identify_request(&[0xff, 0xff, 0x00, 0x00]).unwrap();
+        assert!(f.all_selector);
+        assert_eq!(f.name_of_station, None);
+    }
+
+    #[test]
+    fn parse_other_filter_is_recorded() {
+        // DeviceID filter (2,3), 4-byte value, no name block
+        let f = parse_identify_request(&[0x02, 0x03, 0x00, 0x04, 0x00, 0x2a, 0x01, 0x0e]).unwrap();
+        assert_eq!(f.name_of_station, None);
+        assert_eq!(f.other_filters, vec![(2, 3)]);
+        assert!(!f.all_selector);
     }
 
     #[test]

@@ -4,6 +4,12 @@ pub mod block;
 pub mod frame;
 pub mod identify;
 
+pub use block::{parse_blocks, write_blocks, DcpBlock};
+pub use frame::{DcpHeader, FrameId, ServiceId, ServiceType, DCP_MULTICAST_MAC};
+pub use identify::{
+    build_identify_response, parse_identify_request, DeviceProperties, IdentifyFilter,
+};
+
 use thiserror::Error;
 
 /// Errors from parsing/serializing DCP frames.
@@ -15,14 +21,10 @@ pub enum DcpError {
     BadServiceId(u8),
     #[error("unknown DCP service type {0}")]
     BadServiceType(u8),
-    #[error("unknown DCP frame id {0:#06x}")]
-    BadFrameId(u16),
     #[error("malformed DCP frame: {0}")]
     Malformed(&'static str),
 }
 
-use crate::dcp::frame::{DcpHeader, FrameId};
-use crate::dcp::identify::{build_identify_response, parse_identify_request, DeviceProperties};
 use crate::eth::{EthHeader, MacAddr, ETHERTYPE_PROFINET};
 
 /// Identity + address this device answers DCP for.
@@ -52,11 +54,17 @@ pub fn handle_dcp_frame(frame: &[u8], cfg: &DeviceConfig) -> Result<Option<Vec<u
         Some(FrameId::IdentifyRequest) => {
             let (header, blocks) = DcpHeader::parse(&payload[2..])?;
             let filter = parse_identify_request(blocks)?;
-            let matches = match &filter.name_of_station {
-                None => true,
-                Some(name) => name == &cfg.properties.name_of_station,
+            // Respond only on a confirmable full match: a matching NameOfStation,
+            // or an explicit AllSelector. Any unrecognized filter block => stay silent
+            // (we cannot confirm it matches this device).
+            let respond = if !filter.other_filters.is_empty() {
+                false
+            } else if let Some(name) = &filter.name_of_station {
+                name == &cfg.properties.name_of_station
+            } else {
+                filter.all_selector
             };
-            if matches {
+            if respond {
                 Ok(Some(build_identify_response(
                     eth.src,
                     cfg.mac,
@@ -129,6 +137,40 @@ mod dispatch_tests {
         let mut f = REQ_FRAME.to_vec();
         f[12] = 0x08;
         f[13] = 0x00; // ethertype IPv4
+        assert_eq!(handle_dcp_frame(&f, &cfg()).unwrap(), None);
+    }
+
+    // Wrap raw DCP filter blocks into a full Identify-request Ethernet frame.
+    fn req_frame(blocks: &[u8]) -> Vec<u8> {
+        let mut f = vec![
+            0x01, 0x0e, 0xcf, 0x00, 0x00, 0x00, // dst multicast
+            0xec, 0x1c, 0x5d, 0x61, 0xe7, 0x3f, // src controller
+            0x88, 0x92, // ethertype
+            0xfe, 0xfe, // FrameID Identify request
+            0x05, 0x00, 0x03, 0x00, 0x01, 0x52, 0x00, 0x01, // svc/type/xid/respdelay
+        ];
+        f.extend_from_slice(&(blocks.len() as u16).to_be_bytes()); // DCPDataLength
+        f.extend_from_slice(blocks);
+        f
+    }
+
+    #[test]
+    fn responds_to_all_selector() {
+        let f = req_frame(&[0xff, 0xff, 0x00, 0x00]);
+        assert!(handle_dcp_frame(&f, &cfg()).unwrap().is_some());
+    }
+
+    #[test]
+    fn ignores_identify_by_other_filter() {
+        // DeviceID filter only, no NameOfStation -> must NOT respond (over-response fix)
+        let f = req_frame(&[0x02, 0x03, 0x00, 0x04, 0x00, 0x2a, 0x01, 0x0e]);
+        assert_eq!(handle_dcp_frame(&f, &cfg()).unwrap(), None);
+    }
+
+    #[test]
+    fn ignores_empty_identify_request() {
+        // No filter blocks at all -> not identify-all (that needs an explicit AllSelector) -> silent.
+        let f = req_frame(&[]);
         assert_eq!(handle_dcp_frame(&f, &cfg()).unwrap(), None);
     }
 }
