@@ -13,13 +13,11 @@ Findings non bloquants pour le Plan 1, à intégrer dans les briefs des plans co
 - **MSG_TRUNC** : `recv` ne gère pas MSG_TRUNC (non-issue pour trames RT standard ≤1522).
 
 ## Pour le Plan 2 (`dcp`) — avant comparaisons frame-exact
-- **`CaptureError` typé** : remplacer `Io(String)`/`Pcap(String)` par des sources typées
-  (`#[from] std::io::Error`, `#[from] pcap_file::PcapError`). Appliquer le même traitement
-  à `TransportError::Io(String)` pour la cohérence inter-modules.
-- **`PcapFrames::next()` non silencieux** : aujourd'hui `Some(Err(_)) => None` confond EOF
-  propre et pcap corrompu → un fichier tronqué passe pour une capture courte valide.
-  Surfacer l'erreur (champ `last_error` ou variante) avant d'utiliser le harnais pour des
-  assertions frame-exact.
+- ✅ **RÉSOLU (merge ba63901)** — **`CaptureError` typé** : `Io(#[from] std::io::Error)` +
+  `Pcap(#[from] pcap_file::PcapError)` + `UnknownFormat([u8;4])`. **`PcapFrames` lit pcap ET
+  pcapng** (auto-détection magic) et l'itérateur renvoie `Result<Vec<u8>, CaptureError>`
+  (plus de swallow). Reste : appliquer le même traitement à **`TransportError::Io(String)`**
+  (module `eth`) pour la cohérence inter-modules — NON fait.
 
 ## Pour le Plan 6 (`config` / GSDML / API typée)
 - **Valider l'ordre des bits BOOL (LSB-first)** : `data::get_bit`/`set_bit` packent le bit
@@ -41,23 +39,18 @@ Findings non bloquants pour le Plan 1, à intégrer dans les briefs des plans co
 
 ## Pour les plans DCP ultérieurs (issus de la revue de branche Plan dcp)
 
-### Important — réponse Identify trop large (à traiter avant un segment multi-device)
-- `dcp::identify::parse_identify_request` ne lit que le bloc **NameOfStation** (2,2). Un Identify
-  *par DeviceID/IP/alias* ciblant un AUTRE device n'a pas de bloc nom → `name_of_station = None`
-  → `handle_dcp_frame` répond quand même (over-response). OK en mono-device (banc actuel), à
-  corriger avant multi-device : matcher TOUS les blocs filtres, ou être conservateur (si un bloc
-  filtre non-nom est présent et que le nom ne matche pas → `Ok(None)`). Cohérent avec la portée
-  planifiée de `IdentifyFilter` ; décision de priorisation = Camille.
+### ✅ RÉSOLU (merge ba63901) — durcissement dcp
+- **Over-response Identify corrigée** : `IdentifyFilter` classe désormais NameOfStation /
+  AllSelector (0xff,0xff) / autres filtres ; `handle_dcp_frame` ne répond que sur match
+  confirmable (nom qui matche, ou AllSelector explicite) et **jamais** si un filtre non reconnu
+  est présent.
+- **Minors soldés** : `DcpError::BadFrameId` retiré ; `pub use` re-exports au niveau `dcp::`
+  (dont `DCP_MULTICAST_MAC`) ; gardes `debug_assert!` overflow dans `block.rs` ; couverture
+  ajoutée (`to_u16`, erreurs `from_u8`, branche `TooShort`, empty-identify, AllSelector).
 
-### Minor (revue de branche, non bloquants)
-- `DcpError::BadFrameId` défini mais jamais construit (FrameID inconnu → `Ok(None)` via `_`). À
-  câbler ou retirer.
-- `DCP_MULTICAST_MAC` (frame.rs) et le futur chemin d'émission pas encore utilisés ; pas de
-  `pub use` au niveau `dcp::` (la spec mentionnait des re-exports).
-- `block_len as u16` (block.rs) sans garde overflow (inoffensif < MTU ; `debug_assert!` possible).
-- `DeviceRole` encodé en u16 (role+reserved) — byte-exact vs golden (role=0) ; revérifier si role≠0.
-- Couverture : `to_u16` GetSet/Hello, chemins d'erreur `from_u8`/`from_u16`, branche `TooShort`
-  bloc tronqué — non testés (arms triviaux).
+### Reste ouvert
+- **`DeviceRole` encodé en u16** (role+reserved) — byte-exact vs golden (role=0) ; revérifier
+  si role≠0 sur un device réel.
 
 ### Politique d'erreur RX (recommandation revue)
 - `handle_dcp_frame` renvoie `Err` sur trame malformée/courte ; une vraie boucle RX doit
