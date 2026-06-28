@@ -13,7 +13,7 @@ fn io_err<E: std::fmt::Display>(e: E) -> TransportError {
     TransportError::Io(e.to_string())
 }
 
-/// Renvoie true si la trame brute est une trame PROFINET (taguée VLAN ou non).
+/// Returns true if the raw frame is a PROFINET frame (VLAN-tagged or untagged).
 fn is_profinet_frame(buf: &[u8]) -> bool {
     if buf.len() < 14 {
         return false;
@@ -107,9 +107,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "necessite CAP_NET_RAW + une interface reelle ; lancer: cargo test -- --ignored"]
+    #[ignore = "requires CAP_NET_RAW + a real interface; run: cargo test -- --ignored"]
     fn open_loopback_succeeds() {
-        // Adapter le nom d'interface a la machine de test (ex. "lo", "eth0").
+        // Adapt the interface name to the test machine (e.g., "lo", "eth0").
         let t = AfPacketTransport::open("lo").expect("open lo");
         let _ = t.recv(Some(Duration::from_millis(10)));
     }

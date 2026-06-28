@@ -1,14 +1,14 @@
-//! `profinet-rt` — pile IO-Device PROFINET RT en Rust pur.
+//! `profinet-rt` — pure-Rust PROFINET RT IO-Device stack.
 //!
-//! Projet communautaire, NON affilié à / approuvé par PROFIBUS & PROFINET
-//! International. « PROFINET » est une marque déposée de PNO.
+//! Community project, NOT affiliated with or endorsed by PROFIBUS & PROFINET
+//! International. "PROFINET" is a registered trademark of PNO.
 
 pub mod capture;
 pub mod data;
 pub mod dcp;
 pub mod eth;
 
-/// Version de la crate (smoke test des fondations).
+/// Crate version (foundations smoke test).
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

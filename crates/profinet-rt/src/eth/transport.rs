@@ -8,14 +8,14 @@ pub enum TransportError {
     Io(String),
 }
 
-/// Abstraction d'E/S de trames Ethernet brutes (en-tête L2 inclus).
+/// Raw Ethernet frame I/O abstraction (L2 header included).
 pub trait EthTransport: Send + Sync {
     fn send(&self, frame: &[u8]) -> Result<(), TransportError>;
-    /// Renvoie `Ok(None)` si aucune trame n'est disponible avant `timeout`.
+    /// Returns `Ok(None)` if no frame is available before `timeout`.
     fn recv(&self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError>;
 }
 
-/// Transport en mémoire pour les tests.
+/// In-memory transport for testing.
 #[derive(Default)]
 pub struct MockTransport {
     tx: Mutex<Vec<Vec<u8>>>,
@@ -26,11 +26,11 @@ impl MockTransport {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Empile une trame que `recv` retournera ensuite (FIFO).
+    /// Enqueues a frame to be returned by `recv` (FIFO).
     pub fn push_rx(&self, frame: Vec<u8>) {
         self.rx.lock().unwrap().push_back(frame);
     }
-    /// Toutes les trames émises via `send`, dans l'ordre.
+    /// All frames sent via `send`, in order.
     pub fn sent(&self) -> Vec<Vec<u8>> {
         self.tx.lock().unwrap().clone()
     }

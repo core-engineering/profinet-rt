@@ -1,43 +1,43 @@
-# PROFINET RT — Plan « data » : codec des types process (BOOL/INT/DINT/REAL/WORD)
+# PROFINET RT — "data" Plan: process type codec (BOOL/INT/DINT/REAL/WORD)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implémenter la couche d'encodage/décodage des 5 types process PROFINET en big-endian / IEEE-754, comme source unique de vérité réutilisée par les couches RT (Plan 4) et config/GSDML (Plan 6).
+**Goal:** Implement the encoding/decoding layer for the 5 PROFINET process types in big-endian / IEEE-754, as a single source of truth reused by the RT layer (Plan 4) and config/GSDML (Plan 6).
 
-**Architecture:** Un module `data` pur, sans I/O ni dépendance réseau. Deux familles de primitives : (1) codecs scalaires big-endian pour `INT` (i16), `WORD` (u16), `DINT` (i32), `REAL` (f32) ; (2) accès bit pour `BOOL` (packé 8 bits/octet, LSB-first façon adressage Siemens `x.0`). Un type `FieldType` décrit les types ; un type `Value` porte une valeur typée. Tout est testable en isolation (round-trips + vecteurs connus).
+**Architecture:** A pure `data` module, with no I/O or network dependencies. Two families of primitives: (1) big-endian scalar codecs for `INT` (i16), `WORD` (u16), `DINT` (i32), `REAL` (f32); (2) bit access for `BOOL` (packed 8 bits/byte, LSB-first following Siemens `x.0` addressing). A `FieldType` type describes the types; a `Value` type carries a typed value. Everything is testable in isolation (round-trips + known vectors).
 
-**Tech Stack:** Rust 2021, `thiserror` (déjà dépendance). Aucune nouvelle dépendance.
+**Tech Stack:** Rust 2021, `thiserror` (already a dependency). No new dependencies.
 
 ## Global Constraints
 
-- **Big-endian (« format Motorola »)** pour tous les types multi-octets — identique à la mémoire Siemens, aucun word-swap.
-- **REAL = IEEE-754 32 bits** big-endian.
-- **BOOL packé** 8 bits/octet, **LSB-first** : le bit d'indice `i` est à l'octet `i/8`, masque `1 << (i % 8)` (convention adressage Siemens où `octet.0` est le bit de poids faible). Ce choix est documenté dans le code et à **revalider contre une capture/GSDML** (consigné dans `FOLLOWUPS.md`).
-- Rust 100 % natif ; pas de code GPL/p-net ; pas de texte de norme IEC en commentaire.
-- Pas d'`unwrap`/`panic` sur les chemins de décodage (entrées potentiellement trop courtes) — renvoyer une erreur typée.
+- **Big-endian ("Motorola format")** for all multi-byte types — identical to Siemens memory, no word-swap.
+- **REAL = IEEE-754 32-bit** big-endian.
+- **BOOL packed** 8 bits/byte, **LSB-first**: bit index `i` is at byte `i/8`, mask `1 << (i % 8)` (Siemens addressing convention where `byte.0` is the least-significant bit). This choice is documented in the code and must be **revalidated against a capture/GSDML** (logged in `FOLLOWUPS.md`).
+- 100% native Rust; no GPL/p-net code; no IEC standard text in comments.
+- No `unwrap`/`panic` on decoding paths (inputs may be too short) — return a typed error.
 
-**Rappel environnement :** Rust est installé via rustup mais PAS sur le PATH par défaut. Préfixer chaque commande cargo par `. "$HOME/.cargo/env" && …` dans la même ligne de shell.
+**Environment reminder:** Rust is installed via rustup but NOT on the PATH by default. Prefix every cargo command with `. "$HOME/.cargo/env" && …` on the same shell line.
 
 ---
 
-### Task 1 : Codecs scalaires big-endian + types `FieldType`/`Value` + `CodecError`
+### Task 1: Big-endian scalar codecs + `FieldType`/`Value` types + `CodecError`
 
 **Files:**
 - Create: `crates/profinet-rt/src/data.rs`
-- Modify: `crates/profinet-rt/src/lib.rs` (ajout `pub mod data;`)
+- Modify: `crates/profinet-rt/src/lib.rs` (add `pub mod data;`)
 
 **Interfaces:**
-- Consumes: (rien)
+- Consumes: (nothing)
 - Produces:
-  - `pub enum FieldType { Bool, Int, Word, Dint, Real }` avec `pub fn byte_len(self) -> Option<usize>` (None pour `Bool`, bit-packé ; 2 pour Int/Word ; 4 pour Dint/Real)
+  - `pub enum FieldType { Bool, Int, Word, Dint, Real }` with `pub fn byte_len(self) -> Option<usize>` (None for `Bool`, bit-packed; 2 for Int/Word; 4 for Dint/Real)
   - `pub enum Value { Bool(bool), Int(i16), Word(u16), Dint(i32), Real(f32) }`
   - `pub fn encode_i16(i16) -> [u8; 2]`, `pub fn encode_u16(u16) -> [u8; 2]`, `pub fn encode_i32(i32) -> [u8; 4]`, `pub fn encode_f32(f32) -> [u8; 4]`
-  - `pub fn decode_i16(&[u8]) -> Result<i16, CodecError>`, idem `decode_u16`, `decode_i32`, `decode_f32`
+  - `pub fn decode_i16(&[u8]) -> Result<i16, CodecError>`, likewise `decode_u16`, `decode_i32`, `decode_f32`
   - `pub enum CodecError { TooShort { need: usize, have: usize }, BitOutOfRange { bit: usize, bytes: usize } }` (via `thiserror`)
 
-- [ ] **Step 1: Écrire les tests (vecteurs connus + round-trips + trop court)**
+- [ ] **Step 1: Write the tests (known vectors + round-trips + too-short)**
 
-Dans `crates/profinet-rt/src/data.rs` :
+In `crates/profinet-rt/src/data.rs`:
 
 ```rust
 #[cfg(test)]
@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn decode_ignores_extra_bytes() {
-        // un buffer plus long que nécessaire décode les premiers octets
+        // a buffer longer than needed decodes the first bytes
         assert_eq!(decode_u16(&[0x01, 0x02, 0x03]).unwrap(), 0x0102);
     }
 
@@ -94,26 +94,26 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `. "$HOME/.cargo/env" && cargo test -p profinet-rt data:: -v`
-Expected: FAIL (compilation : symboles non définis).
+Expected: FAIL (compilation: undefined symbols).
 
-- [ ] **Step 3: Implémenter le module**
+- [ ] **Step 3: Implement the module**
 
-En tête de `crates/profinet-rt/src/data.rs` :
+At the top of `crates/profinet-rt/src/data.rs`:
 
 ```rust
-//! Encodage/décodage des types process PROFINET.
+//! Encoding/decoding of PROFINET process types.
 //!
-//! Tous les types multi-octets sont en big-endian (« format Motorola »),
-//! identique à la représentation mémoire Siemens : aucun word-swap nécessaire.
-//! `REAL` est de l'IEEE-754 32 bits. `BOOL` est packé 8 bits par octet, LSB-first
-//! (le bit `octet.0` est le bit de poids faible), convention d'adressage Siemens.
+//! All multi-byte types are big-endian ("Motorola format"),
+//! identical to the Siemens memory representation: no word-swap needed.
+//! `REAL` is IEEE-754 32-bit. `BOOL` is packed 8 bits per byte, LSB-first
+//! (bit `byte.0` is the least significant bit), Siemens addressing convention.
 
 use thiserror::Error;
 
-/// Les 5 types process supportés.
+/// The 5 supported process types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldType {
     Bool,
@@ -124,7 +124,7 @@ pub enum FieldType {
 }
 
 impl FieldType {
-    /// Taille en octets pour les types alignés-octet ; `None` pour `Bool` (bit-packé).
+    /// Byte size for byte-aligned types; `None` for `Bool` (bit-packed).
     pub fn byte_len(self) -> Option<usize> {
         match self {
             FieldType::Bool => None,
@@ -134,7 +134,7 @@ impl FieldType {
     }
 }
 
-/// Valeur process typée.
+/// Typed process value.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {
     Bool(bool),
@@ -144,7 +144,7 @@ pub enum Value {
     Real(f32),
 }
 
-/// Erreurs d'encodage/décodage.
+/// Encoding/decoding errors.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CodecError {
     #[error("buffer too short: need {need}, have {have}")]
@@ -183,7 +183,7 @@ pub fn decode_f32(b: &[u8]) -> Result<f32, CodecError> {
     Ok(f32::from_be_bytes(a))
 }
 
-/// Copie les `N` premiers octets de `b`, ou renvoie `TooShort`.
+/// Copies the first `N` bytes of `b`, or returns `TooShort`.
 fn take<const N: usize>(b: &[u8]) -> Result<[u8; N], CodecError> {
     if b.len() < N {
         return Err(CodecError::TooShort { need: N, have: b.len() });
@@ -194,17 +194,17 @@ fn take<const N: usize>(b: &[u8]) -> Result<[u8; N], CodecError> {
 }
 ```
 
-Ajouter dans `crates/profinet-rt/src/lib.rs` : `pub mod data;`
+Add to `crates/profinet-rt/src/lib.rs`: `pub mod data;`
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `. "$HOME/.cargo/env" && cargo test -p profinet-rt data:: -v`
 Expected: PASS (5 tests).
 
-- [ ] **Step 5: Vérifier fmt + clippy puis commit**
+- [ ] **Step 5: Check fmt + clippy then commit**
 
 Run: `. "$HOME/.cargo/env" && cargo fmt --all --check && cargo clippy --all-targets -- -D warnings`
-Expected: aucune erreur.
+Expected: no errors.
 
 ```bash
 git add -A
@@ -213,10 +213,10 @@ git commit -m "feat(data): codecs scalaires big-endian + FieldType/Value/CodecEr
 
 ---
 
-### Task 2 : Accès bit pour `BOOL` (packé, LSB-first)
+### Task 2: Bit access for `BOOL` (packed, LSB-first)
 
 **Files:**
-- Modify: `crates/profinet-rt/src/data.rs` (ajout des fonctions bit + tests)
+- Modify: `crates/profinet-rt/src/data.rs` (add bit functions + tests)
 
 **Interfaces:**
 - Consumes: `CodecError` (Task 1)
@@ -224,9 +224,9 @@ git commit -m "feat(data): codecs scalaires big-endian + FieldType/Value/CodecEr
   - `pub fn get_bit(buf: &[u8], bit: usize) -> Result<bool, CodecError>`
   - `pub fn set_bit(buf: &mut [u8], bit: usize, value: bool) -> Result<(), CodecError>`
 
-- [ ] **Step 1: Écrire les tests (limites d'octet, hors-plage, set puis get)**
+- [ ] **Step 1: Write the tests (byte boundaries, out-of-range, set then get)**
 
-Ajouter dans le `mod tests` de `crates/profinet-rt/src/data.rs` :
+Add to the `mod tests` in `crates/profinet-rt/src/data.rs`:
 
 ```rust
     #[test]
@@ -270,17 +270,17 @@ Ajouter dans le `mod tests` de `crates/profinet-rt/src/data.rs` :
     }
 ```
 
-- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `. "$HOME/.cargo/env" && cargo test -p profinet-rt data:: -v`
-Expected: FAIL (compilation : `get_bit`/`set_bit` non définis).
+Expected: FAIL (compilation: `get_bit`/`set_bit` undefined).
 
-- [ ] **Step 3: Implémenter les accès bit**
+- [ ] **Step 3: Implement the bit access functions**
 
-Ajouter dans `crates/profinet-rt/src/data.rs` (hors du `mod tests`) :
+Add to `crates/profinet-rt/src/data.rs` (outside `mod tests`):
 
 ```rust
-/// Lit le bit d'indice `bit` (LSB-first : octet `bit/8`, masque `1 << (bit % 8)`).
+/// Reads bit at index `bit` (LSB-first: byte `bit/8`, mask `1 << (bit % 8)`).
 pub fn get_bit(buf: &[u8], bit: usize) -> Result<bool, CodecError> {
     let byte = bit / 8;
     if byte >= buf.len() {
@@ -289,7 +289,7 @@ pub fn get_bit(buf: &[u8], bit: usize) -> Result<bool, CodecError> {
     Ok((buf[byte] >> (bit % 8)) & 1 == 1)
 }
 
-/// Écrit le bit d'indice `bit` (même convention que `get_bit`).
+/// Writes bit at index `bit` (same convention as `get_bit`).
 pub fn set_bit(buf: &mut [u8], bit: usize, value: bool) -> Result<(), CodecError> {
     let byte = bit / 8;
     if byte >= buf.len() {
@@ -305,15 +305,15 @@ pub fn set_bit(buf: &mut [u8], bit: usize, value: bool) -> Result<(), CodecError
 }
 ```
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `. "$HOME/.cargo/env" && cargo test -p profinet-rt data:: -v`
-Expected: PASS (8 tests au total dans le module `data`).
+Expected: PASS (8 tests total in the `data` module).
 
-- [ ] **Step 5: Vérifier fmt + clippy puis commit**
+- [ ] **Step 5: Check fmt + clippy then commit**
 
 Run: `. "$HOME/.cargo/env" && cargo fmt --all --check && cargo clippy --all-targets -- -D warnings`
-Expected: aucune erreur.
+Expected: no errors.
 
 ```bash
 git add -A
@@ -322,9 +322,9 @@ git commit -m "feat(data): acces bit BOOL packe (LSB-first)"
 
 ---
 
-## Self-review (rempli après écriture)
+## Self-review (filled in after writing)
 
-- **Couverture spec** : couvre §5.3 (mapping des types) de la spec + la brique « encodage typé » de la roadmap (Plan 6). Le layout slots/sous-modules et le GSDML restent au Plan 6 ; ici seulement les primitives d'encodage. ✅
-- **Placeholders** : aucun TODO/TBD ; tout le code est fourni. ✅
-- **Cohérence des types** : `CodecError` défini en Task 1 et réutilisé en Task 2 ; `FieldType::byte_len -> Option<usize>` cohérent (None pour Bool). ✅
-- **Suivi** : la convention de bit-order LSB-first est un choix à valider contre une capture/GSDML → à ajouter dans `FOLLOWUPS.md`.
+- **Spec coverage**: covers §5.3 (type mapping) of the spec + the "typed encoding" building block from the roadmap (Plan 6). The slot/sub-module layout and GSDML remain in Plan 6; only encoding primitives here. ✅
+- **Placeholders**: no TODO/TBD; all code is provided. ✅
+- **Type consistency**: `CodecError` defined in Task 1 and reused in Task 2; `FieldType::byte_len -> Option<usize>` consistent (None for Bool). ✅
+- **Follow-up**: the LSB-first bit-order convention is a choice to validate against a capture/GSDML → to be added to `FOLLOWUPS.md`.

@@ -1,21 +1,22 @@
 # captures/
 
-Captures PROFINET de banc (vérité-terrain). **Les `.pcapng` ne sont pas versionnés**
-(volumineux + reproductibles ; risque de corruption git sous WSL/NTFS). Les octets de
-référence extraits sont figés dans [`../docs/dcp-golden-frames.md`](../docs/dcp-golden-frames.md)
-et embarqués en hex dans les tests du module `dcp`.
+Bench PROFINET captures (ground truth). **The `.pcapng` files are not versioned**
+(large + reproducible; risk of git corruption under WSL/NTFS). The extracted reference
+bytes are frozen in [`../docs/dcp-golden-frames.md`](../docs/dcp-golden-frames.md)
+and embedded as hex in the `dcp` module tests.
 
 ## Provenance
-Banc 2026-06-26 : **S7-1500 CPU 1515-2 PN (FW V2.9)** = IO-Controller ↔ instance **PLCSIM
-Advanced `i-device`**, segment isolé (sans CPL), capture via Wireshark/npcap, décodage tshark 4.6.6.
+Bench 2026-06-26: **S7-1500 CPU 1515-2 PN (FW V2.9)** = IO-Controller ↔ **PLCSIM
+Advanced `i-device`** instance, isolated segment (no CPL), captured via Wireshark/npcap,
+decoded with tshark 4.6.6.
 
-| Fichier | Contenu |
+| File | Contents |
 |---|---|
-| `dcp-identify.pcapng` | DCP Identify req/resp (golden frames du Plan 2) |
-| `dcp-identify-01.pcapng` | idem, segment nettoyé (sans CPL) ; montre aussi le reject AR `nca_unk_if` |
-| `dcp-set.pcapng` | cycles Identify/connect-retry (pas de DCP-Set réel : PLCSIM n'en reçoit pas) |
+| `dcp-identify.pcapng` | DCP Identify req/resp (Plan 2 golden frames) |
+| `dcp-identify-01.pcapng` | same, cleaned segment (no CPL); also shows AR reject `nca_unk_if` |
+| `dcp-set.pcapng` | Identify/connect-retry cycles (no real DCP-Set: PLCSIM does not receive any) |
 
-## Limite connue
-PLCSIM Advanced **ne fait pas de PROFINET IO temps réel** (AR/RT cyclique) sur le fil → pas de
-golden frames Connect/AR/RT/alarme ici. À capturer avec un **device réel** ou **p-net sur l'edge**
-(cf. notes projet). Filtre de capture : `ether proto 0x8892 or vlan or udp port 34964`.
+## Known limitation
+PLCSIM Advanced **does not perform real-time PROFINET IO** (AR/RT cyclic) on the wire →
+no Connect/AR/RT/alarm golden frames here. To be captured with a **real device** or
+**p-net on the edge** (see project notes). Capture filter: `ether proto 0x8892 or vlan or udp port 34964`.

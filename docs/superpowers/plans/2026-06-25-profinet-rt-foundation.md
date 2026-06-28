@@ -1,28 +1,28 @@
-# PROFINET RT — Plan 1 : Fondations (scaffold + couche `eth` + harnais golden-frames)
+# PROFINET RT — Plan 1: Foundations (scaffold + `eth` layer + golden-frames harness)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Poser les fondations de la crate `profinet-rt` : workspace + CI, l'abstraction d'E/S trames Ethernet niveau 2 (trait mockable + backend `AF_PACKET`), et un harnais de capture/replay pour tester les couches supérieures contre des trames « golden » Wireshark.
+**Goal:** Lay the foundations of the `profinet-rt` crate: workspace + CI, the Layer-2 Ethernet frame I/O abstraction (mockable trait + `AF_PACKET` backend), and a capture/replay harness for testing upper layers against Wireshark "golden" frames.
 
-**Architecture:** Crate Rust pure, sans pile C tierce. La couche `eth` expose un trait `EthTransport` (send/recv de trames brutes EtherType `0x8892`) avec deux implémentations : `MockTransport` (file en mémoire, pour les tests) et `AfPacketTransport` (socket raw Linux). Un module `capture` lit des fichiers `.pcap` (parser Rust pur) pour rejouer des échanges réels dans les tests. Ce plan ne dépend ni de la norme IEC ni d'un PLC.
+**Architecture:** Pure Rust crate, no bundled third-party C stack. The `eth` layer exposes an `EthTransport` trait (send/recv of raw frames with EtherType `0x8892`) with two implementations: `MockTransport` (in-memory queue, for tests) and `AfPacketTransport` (Linux raw socket). A `capture` module reads `.pcap` files (pure-Rust parser) to replay real exchanges in tests. This plan depends on neither the IEC standard nor a PLC.
 
-**Tech Stack:** Rust 2021 (rust-version ≥ 1.74), `nix` (socket AF_PACKET), `thiserror` (erreurs), `pcap-file` (dev-dependency, parsing pcap pur Rust). CI : `cargo test` + `cargo clippy -D warnings` + `cargo fmt --check`.
+**Tech Stack:** Rust 2021 (rust-version ≥ 1.74), `nix` (AF_PACKET socket), `thiserror` (errors), `pcap-file` (dev-dependency, pure-Rust pcap parsing). CI: `cargo test` + `cargo clippy -D warnings` + `cargo fmt --check`.
 
 ## Global Constraints
 
-- **Rust 100 % natif** — aucune pile/dépendance C tierce bundlée (interdiction stricte de code `p-net` ou autre pile GPL). Les bindings de syscalls (`nix`/`libc`) sont autorisés : ce sont des appels noyau, pas une pile C embarquée.
-- **Double licence MIT OR Apache-2.0** — fichiers `LICENSE-MIT` et `LICENSE-APACHE` présents, champ `license = "MIT OR Apache-2.0"` dans chaque `Cargo.toml`.
-- **Marque** — « PROFINET » uniquement en usage descriptif ; le README contient un disclaimer de non-affiliation PI. Pas de logo, pas de « certified ».
-- **Aucun texte de norme IEC** recopié dans le code ou les commentaires (paraphrase uniquement).
-- **Plateforme** — Linux (Debian PREEMPT_RT cible) ; le backend `AF_PACKET` est `#[cfg(target_os = "linux")]`.
+- **100% native Rust** — no bundled third-party C stack/dependency (strict prohibition of `p-net` code or any GPL stack). Syscall bindings (`nix`/`libc`) are allowed: they are kernel calls, not an embedded C stack.
+- **Dual license MIT OR Apache-2.0** — `LICENSE-MIT` and `LICENSE-APACHE` files present, field `license = "MIT OR Apache-2.0"` in every `Cargo.toml`.
+- **Trademark** — "PROFINET" used in descriptive context only; the README contains a PI non-affiliation disclaimer. No logo, no "certified".
+- **No IEC standard text** copied into code or comments (paraphrase only).
+- **Platform** — Linux (Debian PREEMPT_RT target); the `AF_PACKET` backend is `#[cfg(target_os = "linux")]`.
 - **EtherType PROFINET** = `0x8892`. **EtherType VLAN** = `0x8100`.
 
 ---
 
-### Task 1 : Scaffold du workspace, CI, licences, disclaimer
+### Task 1: Workspace scaffold, CI, licenses, disclaimer
 
 **Files:**
-- Create: `Cargo.toml` (workspace racine)
+- Create: `Cargo.toml` (workspace root)
 - Create: `crates/profinet-rt/Cargo.toml`
 - Create: `crates/profinet-rt/src/lib.rs`
 - Create: `LICENSE-MIT`, `LICENSE-APACHE`
@@ -31,20 +31,20 @@
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: (rien)
-- Produces: crate `profinet-rt` compilable, fonction de fumée `pub fn version() -> &'static str`.
+- Consumes: (nothing)
+- Produces: compilable `profinet-rt` crate, smoke function `pub fn version() -> &'static str`.
 
-- [ ] **Step 1: Écrire le test de fumée**
+- [ ] **Step 1: Write the smoke test**
 
-Dans `crates/profinet-rt/src/lib.rs` :
+In `crates/profinet-rt/src/lib.rs`:
 
 ```rust
-//! `profinet-rt` — pile IO-Device PROFINET RT en Rust pur.
+//! `profinet-rt` — pure-Rust PROFINET RT IO-Device stack.
 //!
-//! Projet communautaire, NON affilié à / approuvé par PROFIBUS & PROFINET
-//! International. « PROFINET » est une marque déposée de PNO.
+//! Community project, NOT affiliated with / endorsed by PROFIBUS & PROFINET
+//! International. "PROFINET" is a registered trademark of PNO.
 
-/// Version de la crate (smoke test des fondations).
+/// Crate version (foundations smoke test).
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -60,9 +60,9 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Créer les manifestes et fichiers de support**
+- [ ] **Step 2: Create manifest and support files**
 
-`Cargo.toml` (racine) :
+`Cargo.toml` (root):
 
 ```toml
 [workspace]
@@ -76,7 +76,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/core-engineering/profinet-rt"
 ```
 
-`crates/profinet-rt/Cargo.toml` :
+`crates/profinet-rt/Cargo.toml`:
 
 ```toml
 [package]
@@ -96,30 +96,30 @@ thiserror = "1"
 pcap-file = "2"
 ```
 
-`rustfmt.toml` :
+`rustfmt.toml`:
 
 ```toml
 max_width = 100
 ```
 
-`README.md` (au minimum) :
+`README.md` (minimum):
 
 ```markdown
 # profinet-rt
 
-Pile **IO-Device PROFINET RT classe 1 / CC-A** en Rust pur pour Linux PREEMPT_RT.
+Pure-Rust **PROFINET RT Class 1 / CC-A IO-Device** stack for Linux PREEMPT_RT.
 
-> **Disclaimer.** Projet communautaire, **non affilié à, ni approuvé ou certifié par**
-> PROFIBUS & PROFINET International (PI). « PROFINET » est une marque déposée de PNO.
-> Cette bibliothèque est une implémentation clean-room à partir de la norme publique
-> IEC 61158/61784. Aucun texte de norme n'y est reproduit.
+> **Disclaimer.** Community project, **not affiliated with, endorsed, or certified by**
+> PROFIBUS & PROFINET International (PI). "PROFINET" is a registered trademark of PNO.
+> This library is a clean-room implementation from the public standard
+> IEC 61158/61784. No normative text is reproduced herein.
 
-## Licence
+## License
 
-Double licence, au choix : [MIT](LICENSE-MIT) ou [Apache-2.0](LICENSE-APACHE).
+Dual-licensed, your choice: [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
 ```
 
-`.github/workflows/ci.yml` :
+`.github/workflows/ci.yml`:
 
 ```yaml
 name: CI
@@ -137,17 +137,17 @@ jobs:
       - run: cargo test --all
 ```
 
-Récupérer les textes standard MIT et Apache-2.0 dans `LICENSE-MIT` / `LICENSE-APACHE`.
+Fetch the standard MIT and Apache-2.0 texts into `LICENSE-MIT` / `LICENSE-APACHE`.
 
-- [ ] **Step 3: Vérifier que le projet compile et que le test passe**
+- [ ] **Step 3: Verify the project compiles and the test passes**
 
 Run: `cargo test --all`
 Expected: PASS (`version_is_not_empty`), 0 warning.
 
-- [ ] **Step 4: Vérifier lint + format**
+- [ ] **Step 4: Verify lint + format**
 
 Run: `cargo fmt --all --check && cargo clippy --all-targets -- -D warnings`
-Expected: aucune sortie d'erreur.
+Expected: no error output.
 
 - [ ] **Step 5: Commit**
 
@@ -158,26 +158,26 @@ git commit -m "feat: scaffold workspace, CI, licences MIT/Apache, disclaimer PI"
 
 ---
 
-### Task 2 : Parsing/sérialisation de l'en-tête Ethernet (+ VLAN)
+### Task 2: Ethernet header parsing/serialization (+ VLAN)
 
 **Files:**
 - Create: `crates/profinet-rt/src/eth/mod.rs`
 - Create: `crates/profinet-rt/src/eth/header.rs`
-- Modify: `crates/profinet-rt/src/lib.rs` (ajout `pub mod eth;`)
+- Modify: `crates/profinet-rt/src/lib.rs` (add `pub mod eth;`)
 
 **Interfaces:**
-- Consumes: (rien)
+- Consumes: (nothing)
 - Produces:
   - `pub struct MacAddr(pub [u8; 6])`
   - `pub struct EthHeader { pub dst: MacAddr, pub src: MacAddr, pub vlan: Option<u16>, pub ethertype: u16 }`
-  - `pub fn EthHeader::parse(buf: &[u8]) -> Result<(EthHeader, usize), EthError>` (renvoie l'en-tête + offset du payload)
+  - `pub fn EthHeader::parse(buf: &[u8]) -> Result<(EthHeader, usize), EthError>` (returns the header + payload offset)
   - `pub fn EthHeader::write(&self, out: &mut Vec<u8>)`
   - `pub enum EthError { TooShort }` (via `thiserror`)
-  - constantes `pub const ETHERTYPE_PROFINET: u16 = 0x8892;` `pub const ETHERTYPE_VLAN: u16 = 0x8100;`
+  - constants `pub const ETHERTYPE_PROFINET: u16 = 0x8892;` `pub const ETHERTYPE_VLAN: u16 = 0x8100;`
 
-- [ ] **Step 1: Écrire les tests (parse sans VLAN, parse avec VLAN, round-trip, trop court)**
+- [ ] **Step 1: Write tests (parse without VLAN, parse with VLAN, round-trip, too short)**
 
-Dans `crates/profinet-rt/src/eth/header.rs` :
+In `crates/profinet-rt/src/eth/header.rs`:
 
 ```rust
 #[cfg(test)]
@@ -190,7 +190,7 @@ mod tests {
         0xfe, 0xfe,
     ];
 
-    // même trame avec tag VLAN 0x8100, TCI=0xE000 (prio 7), avant l'ethertype
+    // same frame with VLAN tag 0x8100, TCI=0xE000 (prio 7), before the ethertype
     const FRAME_VLAN: [u8; 20] = [
         0x01, 0x0e, 0xcf, 0x00, 0x00, 0x00, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x81, 0x00,
         0xe0, 0x00, 0x88, 0x92, 0xfe, 0xfe,
@@ -230,14 +230,14 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test -p profinet-rt eth::header -v`
-Expected: FAIL (compilation : `EthHeader` / `MacAddr` non définis).
+Expected: FAIL (compilation: `EthHeader` / `MacAddr` not defined).
 
-- [ ] **Step 3: Implémenter l'en-tête**
+- [ ] **Step 3: Implement the header**
 
-En tête de `crates/profinet-rt/src/eth/header.rs` :
+At the top of `crates/profinet-rt/src/eth/header.rs`:
 
 ```rust
 use thiserror::Error;
@@ -263,7 +263,7 @@ pub enum EthError {
 }
 
 impl EthHeader {
-    /// Parse l'en-tête L2 ; renvoie (en-tête, offset du payload).
+    /// Parses the L2 header; returns (header, payload offset).
     pub fn parse(buf: &[u8]) -> Result<(Self, usize), EthError> {
         if buf.len() < 14 {
             return Err(EthError::TooShort);
@@ -288,7 +288,7 @@ impl EthHeader {
         Ok((Self { dst: MacAddr(dst), src: MacAddr(src), vlan, ethertype }, off))
     }
 
-    /// Sérialise l'en-tête (sans le payload) dans `out`.
+    /// Serializes the header (without payload) into `out`.
     pub fn write(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(&self.dst.0);
         out.extend_from_slice(&self.src.0);
@@ -301,16 +301,16 @@ impl EthHeader {
 }
 ```
 
-`crates/profinet-rt/src/eth/mod.rs` :
+`crates/profinet-rt/src/eth/mod.rs`:
 
 ```rust
 mod header;
 pub use header::{EthError, EthHeader, MacAddr, ETHERTYPE_PROFINET, ETHERTYPE_VLAN};
 ```
 
-Ajouter dans `crates/profinet-rt/src/lib.rs` : `pub mod eth;`
+Add to `crates/profinet-rt/src/lib.rs`: `pub mod eth;`
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test -p profinet-rt eth::header -v`
 Expected: PASS (4 tests).
@@ -324,7 +324,7 @@ git commit -m "feat(eth): parsing/serialisation en-tete Ethernet + VLAN"
 
 ---
 
-### Task 3 : Trait `EthTransport` + `MockTransport`
+### Task 3: `EthTransport` trait + `MockTransport`
 
 **Files:**
 - Create: `crates/profinet-rt/src/eth/transport.rs`
@@ -334,12 +334,12 @@ git commit -m "feat(eth): parsing/serialisation en-tete Ethernet + VLAN"
 - Consumes: `MacAddr` (Task 2)
 - Produces:
   - `pub trait EthTransport { fn send(&self, frame: &[u8]) -> Result<(), TransportError>; fn recv(&self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError>; }`
-  - `pub struct MockTransport` avec `pub fn new() -> Self`, `pub fn push_rx(&self, frame: Vec<u8>)`, `pub fn sent(&self) -> Vec<Vec<u8>>`
+  - `pub struct MockTransport` with `pub fn new() -> Self`, `pub fn push_rx(&self, frame: Vec<u8>)`, `pub fn sent(&self) -> Vec<Vec<u8>>`
   - `pub enum TransportError` (via `thiserror`)
 
-- [ ] **Step 1: Écrire les tests du mock**
+- [ ] **Step 1: Write the mock tests**
 
-Dans `crates/profinet-rt/src/eth/transport.rs` :
+In `crates/profinet-rt/src/eth/transport.rs`:
 
 ```rust
 #[cfg(test)]
@@ -364,14 +364,14 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test -p profinet-rt eth::transport -v`
-Expected: FAIL (compilation : `MockTransport` non défini).
+Expected: FAIL (compilation: `MockTransport` not defined).
 
-- [ ] **Step 3: Implémenter le trait et le mock**
+- [ ] **Step 3: Implement the trait and the mock**
 
-En tête de `crates/profinet-rt/src/eth/transport.rs` :
+At the top of `crates/profinet-rt/src/eth/transport.rs`:
 
 ```rust
 use std::sync::Mutex;
@@ -384,14 +384,14 @@ pub enum TransportError {
     Io(String),
 }
 
-/// Abstraction d'E/S de trames Ethernet brutes (en-tête L2 inclus).
+/// Raw Ethernet frame I/O abstraction (L2 header included).
 pub trait EthTransport {
     fn send(&self, frame: &[u8]) -> Result<(), TransportError>;
-    /// Renvoie `Ok(None)` si aucune trame n'est disponible avant `timeout`.
+    /// Returns `Ok(None)` if no frame is available before `timeout`.
     fn recv(&self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError>;
 }
 
-/// Transport en mémoire pour les tests.
+/// In-memory transport for testing.
 #[derive(Default)]
 pub struct MockTransport {
     tx: Mutex<Vec<Vec<u8>>>,
@@ -402,11 +402,11 @@ impl MockTransport {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Empile une trame que `recv` retournera ensuite (FIFO).
+    /// Pushes a frame that `recv` will return next (FIFO).
     pub fn push_rx(&self, frame: Vec<u8>) {
         self.rx.lock().unwrap().push_back(frame);
     }
-    /// Toutes les trames émises via `send`, dans l'ordre.
+    /// All frames emitted via `send`, in order.
     pub fn sent(&self) -> Vec<Vec<u8>> {
         self.tx.lock().unwrap().clone()
     }
@@ -423,7 +423,7 @@ impl EthTransport for MockTransport {
 }
 ```
 
-Mettre à jour `crates/profinet-rt/src/eth/mod.rs` :
+Update `crates/profinet-rt/src/eth/mod.rs`:
 
 ```rust
 mod header;
@@ -432,7 +432,7 @@ pub use header::{EthError, EthHeader, MacAddr, ETHERTYPE_PROFINET, ETHERTYPE_VLA
 pub use transport::{EthTransport, MockTransport, TransportError};
 ```
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test -p profinet-rt eth::transport -v`
 Expected: PASS (2 tests).
@@ -446,7 +446,7 @@ git commit -m "feat(eth): trait EthTransport + MockTransport"
 
 ---
 
-### Task 4 : Backend `AfPacketTransport` (socket raw Linux)
+### Task 4: `AfPacketTransport` backend (Linux raw socket)
 
 **Files:**
 - Create: `crates/profinet-rt/src/eth/afpacket.rs`
@@ -456,15 +456,15 @@ git commit -m "feat(eth): trait EthTransport + MockTransport"
 - Consumes: `EthTransport`, `TransportError` (Task 3)
 - Produces:
   - `#[cfg(target_os = "linux")] pub struct AfPacketTransport`
-  - `pub fn AfPacketTransport::open(ifname: &str) -> Result<Self, TransportError>` — ouvre un `AF_PACKET`/`SOCK_RAW` lié à l'interface, filtré sur EtherType PROFINET
-  - implémente `EthTransport`
+  - `pub fn AfPacketTransport::open(ifname: &str) -> Result<Self, TransportError>` — opens an `AF_PACKET`/`SOCK_RAW` socket bound to the interface, filtered on EtherType PROFINET
+  - implements `EthTransport`
 
-- [ ] **Step 1: Écrire le test (erreur sur interface inexistante)**
+- [ ] **Step 1: Write the test (error on nonexistent interface)**
 
-> Note : `open()` sur une vraie interface exige `CAP_NET_RAW` et un NIC ; ces tests sont
-> marqués `#[ignore]` et lancés manuellement. Le test non-ignoré valide le chemin d'erreur.
+> Note: `open()` on a real interface requires `CAP_NET_RAW` and a NIC; these tests are
+> marked `#[ignore]` and run manually. The non-ignored test validates the error path.
 
-Dans `crates/profinet-rt/src/eth/afpacket.rs` :
+In `crates/profinet-rt/src/eth/afpacket.rs`:
 
 ```rust
 #[cfg(test)]
@@ -478,23 +478,23 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "necessite CAP_NET_RAW + une interface reelle ; lancer: cargo test -- --ignored"]
+    #[ignore = "requires CAP_NET_RAW + a real interface; run: cargo test -- --ignored"]
     fn open_loopback_succeeds() {
-        // Adapter le nom d'interface a la machine de test (ex. "lo", "eth0").
+        // Adapt the interface name to the test machine (e.g. "lo", "eth0").
         let t = AfPacketTransport::open("lo").expect("open lo");
         let _ = t.recv(Some(std::time::Duration::from_millis(10)));
     }
 }
 ```
 
-- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+- [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cargo test -p profinet-rt eth::afpacket -v`
-Expected: FAIL (compilation : `AfPacketTransport` non défini).
+Expected: FAIL (compilation: `AfPacketTransport` not defined).
 
-- [ ] **Step 3: Implémenter le backend AF_PACKET**
+- [ ] **Step 3: Implement the AF_PACKET backend**
 
-En tête de `crates/profinet-rt/src/eth/afpacket.rs` (implémentation via `nix`) :
+At the top of `crates/profinet-rt/src/eth/afpacket.rs` (implementation via `nix`):
 
 ```rust
 use std::os::fd::{AsRawFd, OwnedFd};
@@ -511,14 +511,14 @@ fn io_err<E: std::fmt::Display>(e: E) -> TransportError {
     TransportError::Io(e.to_string())
 }
 
-/// Socket raw AF_PACKET lié à une interface, filtré sur l'EtherType PROFINET.
+/// Raw AF_PACKET socket bound to an interface, filtered on the PROFINET EtherType.
 pub struct AfPacketTransport {
     fd: OwnedFd,
 }
 
 impl AfPacketTransport {
     pub fn open(ifname: &str) -> Result<Self, TransportError> {
-        let proto = SockProtocol::EthAll; // on filtre l'EtherType nous-memes au recv
+        let proto = SockProtocol::EthAll; // we filter the EtherType ourselves at recv
         let fd = socket(AddressFamily::Packet, SockType::Raw, SockFlag::empty(), proto)
             .map_err(io_err)?;
 
@@ -531,7 +531,7 @@ impl AfPacketTransport {
 }
 
 fn libc_ethertype_all() -> u16 {
-    // ETH_P_ALL = 0x0003 (htons applique par la couche socket selon la plateforme)
+    // ETH_P_ALL = 0x0003 (htons applied by the socket layer depending on platform)
     0x0003
 }
 
@@ -545,7 +545,7 @@ impl EthTransport for AfPacketTransport {
         let mut buf = vec![0u8; 1522];
         let n = recv(self.fd.as_raw_fd(), &mut buf, MsgFlags::empty()).map_err(io_err)?;
         buf.truncate(n);
-        // Filtre EtherType PROFINET (offset 12, hors VLAN — un filtrage fin viendra avec eth::header).
+        // Filter PROFINET EtherType (offset 12, without VLAN — fine-grained filtering will come with eth::header).
         if n >= 14 && u16::from_be_bytes([buf[12], buf[13]]) == ETHERTYPE_PROFINET {
             Ok(Some(buf))
         } else {
@@ -555,13 +555,9 @@ impl EthTransport for AfPacketTransport {
 }
 ```
 
-> ⚠️ Détail d'implémentation à ajuster à l'exécution selon la version de `nix` (signatures
-> `LinkAddr`/`SockProtocol`). Si l'API `nix` diverge, retomber sur `libc` brut pour
-> `socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))` + `bind(sockaddr_ll)`. Le contrat public
-> (`open`, `send`, `recv`) reste identique. La gestion du `timeout` (via `setsockopt
-> SO_RCVTIMEO` ou `poll`) sera affinée au Plan 4 quand la boucle RT en aura besoin.
+> ⚠️ Implementation detail to adjust at runtime depending on the `nix` version (`LinkAddr`/`SockProtocol` signatures). If the `nix` API diverges, fall back to raw `libc` for `socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))` + `bind(sockaddr_ll)`. The public contract (`open`, `send`, `recv`) remains identical. Timeout handling (via `setsockopt SO_RCVTIMEO` or `poll`) will be refined in Plan 4 when the RT loop needs it.
 
-Mettre à jour `crates/profinet-rt/src/eth/mod.rs` :
+Update `crates/profinet-rt/src/eth/mod.rs`:
 
 ```rust
 #[cfg(target_os = "linux")]
@@ -570,12 +566,12 @@ mod afpacket;
 pub use afpacket::AfPacketTransport;
 ```
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test -p profinet-rt eth::afpacket -v`
-Expected: PASS (`open_unknown_interface_errors`), l'autre est `ignored`.
+Expected: PASS (`open_unknown_interface_errors`), the other is `ignored`.
 
-Test manuel (sur l'edge, avec droits) : `sudo -E cargo test -p profinet-rt -- --ignored`
+Manual test (on the edge, with privileges): `sudo -E cargo test -p profinet-rt -- --ignored`
 
 - [ ] **Step 5: Commit**
 
@@ -586,25 +582,25 @@ git commit -m "feat(eth): backend AF_PACKET (socket raw Linux)"
 
 ---
 
-### Task 5 : Harnais de capture/replay (lecture pcap golden-frames)
+### Task 5: Capture/replay harness (pcap golden-frames reader)
 
 **Files:**
 - Create: `crates/profinet-rt/src/capture.rs`
-- Create: `crates/profinet-rt/tests/fixtures/README.md` (où déposer les `.pcap`)
+- Create: `crates/profinet-rt/tests/fixtures/README.md` (where to place `.pcap` files)
 - Create: `crates/profinet-rt/tests/capture_replay.rs`
-- Modify: `crates/profinet-rt/src/lib.rs` (ajout `pub mod capture;`)
+- Modify: `crates/profinet-rt/src/lib.rs` (add `pub mod capture;`)
 
 **Interfaces:**
-- Consumes: (rien)
+- Consumes: (nothing)
 - Produces:
   - `pub struct PcapFrames { ... }`
   - `pub fn PcapFrames::open(path: &Path) -> Result<PcapFrames, CaptureError>`
-  - `impl Iterator for PcapFrames { type Item = Vec<u8>; }` (chaque item = trame Ethernet brute)
+  - `impl Iterator for PcapFrames { type Item = Vec<u8>; }` (each item = raw Ethernet frame)
   - `pub enum CaptureError` (via `thiserror`)
 
-- [ ] **Step 1: Écrire le test unitaire (count + 1re trame) sur un pcap généré en mémoire**
+- [ ] **Step 1: Write the unit test (count + first frame) on an in-memory generated pcap**
 
-Dans `crates/profinet-rt/src/capture.rs` :
+In `crates/profinet-rt/src/capture.rs`:
 
 ```rust
 #[cfg(test)]
@@ -637,14 +633,14 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+- [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cargo test -p profinet-rt capture -v`
-Expected: FAIL (compilation : `PcapFrames` non défini).
+Expected: FAIL (compilation: `PcapFrames` not defined).
 
-- [ ] **Step 3: Implémenter le lecteur pcap**
+- [ ] **Step 3: Implement the pcap reader**
 
-En tête de `crates/profinet-rt/src/capture.rs` :
+At the top of `crates/profinet-rt/src/capture.rs`:
 
 ```rust
 use std::fs::File;
@@ -662,7 +658,7 @@ pub enum CaptureError {
     Pcap(String),
 }
 
-/// Itérateur sur les trames Ethernet brutes d'un fichier pcap.
+/// Iterator over raw Ethernet frames from a pcap file.
 pub struct PcapFrames<R: Read> {
     reader: PcapReader<R>,
 }
@@ -692,24 +688,24 @@ impl<R: Read> Iterator for PcapFrames<R> {
 }
 ```
 
-> ⚠️ `pcap-file` doit être promu de `dev-dependencies` vers `dependencies` puisque
-> `capture` fait partie de l'API publique. Déplacer la ligne `pcap-file = "2"` dans
-> `[dependencies]` du `Cargo.toml` de la crate.
+> ⚠️ `pcap-file` must be promoted from `dev-dependencies` to `dependencies` since
+> `capture` is part of the public API. Move the `pcap-file = "2"` line into
+> `[dependencies]` in the crate's `Cargo.toml`.
 
-`crates/profinet-rt/tests/fixtures/README.md` :
+`crates/profinet-rt/tests/fixtures/README.md`:
 
 ```markdown
 # Fixtures golden-frames
 
-Déposer ici les captures Wireshark (`.pcap`) d'échanges PROFINET de référence
-(DCP, établissement AR, trames RT). Elles servent de vérité terrain aux tests
-des plans 2+ (parsing/sérialisation par couche).
+Place Wireshark captures (`.pcap`) of reference PROFINET exchanges here
+(DCP, AR establishment, RT frames). They serve as ground truth for tests
+in plans 2+ (per-layer parsing/serialisation).
 ```
 
-`crates/profinet-rt/tests/capture_replay.rs` :
+`crates/profinet-rt/tests/capture_replay.rs`:
 
 ```rust
-//! Test d'intégration : rejoue un pcap fixture s'il existe (sinon ignoré).
+//! Integration test: replays a pcap fixture if present (otherwise skipped).
 use profinet_rt::capture::PcapFrames;
 use std::path::Path;
 
@@ -717,20 +713,20 @@ use std::path::Path;
 fn replay_fixture_if_present() {
     let p = Path::new("tests/fixtures/sample.pcap");
     if !p.exists() {
-        eprintln!("pas de fixture sample.pcap — test ignoré");
+        eprintln!("no fixture sample.pcap — test skipped");
         return;
     }
     let n = PcapFrames::open(p).unwrap().count();
-    assert!(n > 0, "le pcap fixture ne doit pas être vide");
+    assert!(n > 0, "the pcap fixture must not be empty");
 }
 ```
 
-Ajouter dans `crates/profinet-rt/src/lib.rs` : `pub mod capture;`
+Add to `crates/profinet-rt/src/lib.rs`: `pub mod capture;`
 
-- [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
+- [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo test -p profinet-rt -v`
-Expected: PASS (tous les tests, y compris `reads_all_frames_in_order` et `replay_fixture_if_present`).
+Expected: PASS (all tests, including `reads_all_frames_in_order` and `replay_fixture_if_present`).
 
 - [ ] **Step 5: Commit**
 
@@ -741,25 +737,24 @@ git commit -m "feat(capture): lecteur pcap golden-frames + harnais de replay"
 
 ---
 
-## Feuille de route des plans suivants (à détailler le moment venu)
+## Roadmap for upcoming plans (to be detailed when the time comes)
 
-Chaque plan produit un livrable testable et s'appuie sur des captures Wireshark de
-référence + la norme IEC acquise. Ordre conseillé :
+Each plan produces a testable deliverable and relies on reference Wireshark captures
++ the acquired IEC standard. Recommended order:
 
-- **Plan 2 — `dcp`** : Discovery & Config Protocol (Identify / Get / Set name-of-station /
-  Set IP / flash). Premier dialogue observable avec TIA Portal ; testable contre golden
-  frames et en HIL (« le device apparaît et se laisse nommer dans TIA »).
-- **Plan 3 — `cm` / établissement AR** : DCE/RPC sur UDP 34964, machine d'état AR
-  (Connect / Write records / Read / Dcontrol / Ccontrol / Release). **Cœur du risque.**
-  Cible : l'AR atteint l'état DATA.
-- **Plan 4 — `rt` cyclique** : PPM/CPM, IOPS/IOCS, data status, cycle counter, watchdog ;
-  thread RT `SCHED_FIFO` + image d'E/S double-buffer/seqlock. Cible : send clock 1 ms tenu,
-  données qui font l'aller-retour.
-- **Plan 5 — `alarm` + `im`** : alarme Application-Ready (indispensable pour passer en RUN),
-  alarmes plug/return-of-submodule, records I&M0.
-- **Plan 6 — `config` + GSDML + API publique** : modèle de config typé (BOOL/INT/DINT/REAL/
-  WORD), génération/cohérence du GSDML d'exemple (16 REAL + 32 BOOL), façade `ProfinetDevice`.
-- **Plan 7 — Intégration HIL + déterminisme** : banc S7-1500 réel, vérif automatisée AR→RUN
-  + aller-retour de valeurs, mesure de gigue (style `cyclictest`), guide de tuning PREEMPT_RT
-  (`isolcpus`, `nohz_full`, affinité IRQ), binaire de démonstration.
-```
+- **Plan 2 — `dcp`**: Discovery & Configuration Protocol (Identify / Get / Set name-of-station /
+  Set IP / flash). First observable exchange with TIA Portal; testable against golden
+  frames and in HIL ("the device appears and can be named in TIA").
+- **Plan 3 — `cm` / AR establishment**: DCE/RPC over UDP 34964, AR state machine
+  (Connect / Write records / Read / Dcontrol / Ccontrol / Release). **Core risk.**
+  Target: AR reaches the DATA state.
+- **Plan 4 — cyclic `rt`**: PPM/CPM, IOPS/IOCS, data status, cycle counter, watchdog;
+  RT thread `SCHED_FIFO` + I/O image double-buffer/seqlock. Target: 1 ms send clock held,
+  data making the round-trip.
+- **Plan 5 — `alarm` + `im`**: Application-Ready alarm (required to enter RUN),
+  plug/return-of-submodule alarms, I&M0 records.
+- **Plan 6 — `config` + GSDML + public API**: typed config model (BOOL/INT/DINT/REAL/
+  WORD), generation/consistency of the sample GSDML (16 REAL + 32 BOOL), `ProfinetDevice` facade.
+- **Plan 7 — HIL integration + determinism**: real S7-1500 bench, automated AR→RUN verification
+  + data round-trip, jitter measurement (`cyclictest`-style), PREEMPT_RT tuning guide
+  (`isolcpus`, `nohz_full`, IRQ affinity), demo binary.

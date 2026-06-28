@@ -1,4 +1,4 @@
-//! Test d'intégration : rejoue un pcap fixture s'il existe (sinon ignoré).
+//! Integration test: replays a pcap fixture if present (otherwise skipped).
 use profinet_rt::capture::PcapFrames;
 use std::path::Path;
 
@@ -6,7 +6,7 @@ use std::path::Path;
 fn replay_fixture_if_present() {
     let p = Path::new("tests/fixtures/sample.pcap");
     if !p.exists() {
-        eprintln!("pas de fixture sample.pcap — test ignoré");
+        eprintln!("no sample.pcap fixture — test skipped");
         return;
     }
     let frames: Vec<Vec<u8>> = PcapFrames::open(p)
@@ -14,5 +14,5 @@ fn replay_fixture_if_present() {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     let n = frames.len();
-    assert!(n > 0, "le pcap fixture ne doit pas être vide");
+    assert!(n > 0, "the pcap fixture must not be empty");
 }

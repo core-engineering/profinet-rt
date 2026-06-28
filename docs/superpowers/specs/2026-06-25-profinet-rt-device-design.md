@@ -1,126 +1,126 @@
-# Spec — `profinet-rt` : pile IO-Device PROFINET RT en Rust
+# Spec — `profinet-rt`: PROFINET RT IO-Device Stack in Rust
 
 - **Date** : 2026-06-25
-- **Statut** : design validé, en attente de relecture utilisateur
-- **Auteur** : Camille Martin
+- **Status** : design validated, pending user review
+- **Author** : Camille Martin
 - **Projet** : `203-profinet-rt`
 
-## 1. Contexte & objectif
+## 1. Context & objective
 
-Disposer d'une **bibliothèque de communication Rust réutilisable** permettant à une
-machine *edge* (Debian PREEMPT_RT) de participer à l'échange **cyclique PROFINET RT**
-avec un automate **S7-1500** (IO-Controller), afin de fermer des **boucles de
-régulation** côté edge avec un temps de cycle **< 2 ms**.
+Provide a **reusable Rust communication library** that enables an *edge* machine
+(Debian PREEMPT_RT) to participate in the **PROFINET RT cyclic exchange** with an
+**S7-1500** IO-Controller, in order to close **control loops** on the edge side
+with a cycle time **< 2 ms**.
 
-Le besoin initial parlait d'« interface Profinet READ/WRITE » et d'un « protocole OT
-éprouvé plutôt que S7 ». Le cadrage a clarifié que :
+The initial requirement referred to a "Profinet READ/WRITE interface" and a
+"proven OT protocol rather than S7". The scoping clarified that:
 
-- Ni S7/S7+, ni Modbus, ni OPC UA ne conviennent : ce sont des protocoles
-  requête/réponse **acycliques**, inadaptés à une boucle de régulation déterministe.
-- Le besoin réel est le **canal cyclique RT** de PROFINET, où l'edge se comporte en
-  **IO-Device** scruté par l'automate à chaque cycle (le PLC fournit les PV, l'edge
-  calcule, renvoie les MV).
+- Neither S7/S7+, nor Modbus, nor OPC UA are suitable: they are
+  **acyclic** request/response protocols, unsuitable for a deterministic control loop.
+- The real need is the **RT cyclic channel** of PROFINET, where the edge acts as an
+  **IO-Device** polled by the controller every cycle (the PLC supplies the PVs, the edge
+  computes and returns the MVs).
 
-## 2. Périmètre
+## 2. Scope
 
-### Dans le périmètre
+### In scope
 
-- Pile **IO-Device PROFINET RT classe 1, Conformance Class A (CC-A)**, en **Rust pur**
-  (aucune dépendance C), pour **Linux PREEMPT_RT**.
-- Send clock **1 ms**, reduction ratio 1 (cycle effectif < 2 ms).
-- Échange cyclique de **données process typées** : `BOOL`, `INT`, `DINT`, `REAL`,
-  `WORD`, dans les deux sens.
-- Services nécessaires à l'interopérabilité avec un S7-1500 :
-  DCP, établissement de l'AR (DCE/RPC), RT cyclique (PPM/CPM), alarmes minimales,
-  records I&M0.
-- **API de bibliothèque générique** sur le mapping de données, fournie via une
-  configuration ; **GSDML d'exemple** livré pour le cas 16 `REAL` + 32 `BOOL` par sens.
+- **PROFINET RT class 1, Conformance Class A (CC-A) IO-Device stack**, in **pure Rust**
+  (no C dependency), targeting **Linux PREEMPT_RT**.
+- Send clock **1 ms**, reduction ratio 1 (effective cycle < 2 ms).
+- Cyclic exchange of **typed process data**: `BOOL`, `INT`, `DINT`, `REAL`,
+  `WORD`, in both directions.
+- Services required for interoperability with an S7-1500:
+  DCP, AR establishment (DCE/RPC), cyclic RT (PPM/CPM), minimal alarms,
+  I&M0 records.
+- **Generic library API** for data mapping, provided via configuration; **example GSDML**
+  delivered for the 16 `REAL` + 32 `BOOL` per direction case.
 
-### Hors périmètre
+### Out of scope
 
-- Toute **logique de régulation / métier** : elle est *consommatrice* de la lib via
-  une API propre, et ignore PROFINET.
-- **IRT / isochrone (CC-C)**, TSN.
-- **Certification PROFINET** officielle (label PI).
-- Rôle **IO-Controller** (l'edge est uniquement IO-Device).
-- Topologie / LLDP (CC-B) — *non requis en CC-A*, voir évolutions possibles.
+- Any **control / business logic**: it *consumes* the library via a clean API and
+  is unaware of PROFINET.
+- **IRT / isochronous (CC-C)**, TSN.
+- Official **PROFINET certification** (PI label).
+- **IO-Controller** role (the edge is IO-Device only).
+- Topology / LLDP (CC-B) — *not required for CC-A*, see possible future extensions.
 
-## 3. Décisions de cadrage (verrouillées)
+## 3. Scoping decisions (locked)
 
-| Sujet | Décision | Raison |
+| Subject | Decision | Reason |
 |---|---|---|
-| Rôle | Edge = **IO-Device** | Le S7-1500 reste IO-Controller et possède les E/S réelles |
-| Protocole | **PROFINET RT classe 1 / CC-A** | Seul canal cyclique déterministe pour la régulation |
-| Cycle | **send clock 1 ms**, < 2 ms | Cible utilisateur, jouable en logiciel sur PREEMPT_RT |
-| Langage | **Rust 100 % natif** | Éviter GPLv3 / licence commerciale de `p-net` ; posséder l'IP |
-| Déterminisme | **Logiciel** (pas d'offload HW) | < 2 ms RT classe 1 atteignable sur PREEMPT_RT bien configuré |
-| Cible | **Interop fonctionnelle**, pas de certif | Usage interne edge ↔ S7-1500 |
-| Livrable | **Crate de communication réutilisable** | Réemploi sur d'autres projets |
+| Role | Edge = **IO-Device** | The S7-1500 remains IO-Controller and owns the real I/O |
+| Protocol | **PROFINET RT class 1 / CC-A** | Only deterministic cyclic channel for control loops |
+| Cycle | **send clock 1 ms**, < 2 ms | User requirement, achievable in software on PREEMPT_RT |
+| Language | **Rust 100% native** | Avoid GPLv3 / `p-net` commercial licence; own the IP |
+| Determinism | **Software** (no HW offload) | < 2 ms RT class 1 achievable on a properly configured PREEMPT_RT |
+| Target | **Functional interop**, no certification | Internal edge ↔ S7-1500 use |
+| Deliverable | **Reusable communication crate** | Reuse across other projects |
 
-## 4. Pourquoi pas `p-net` (rappel décision)
+## 4. Why not `p-net` (decision rationale)
 
-`p-net` (rt-labs) est en **double licence GPLv3 + commerciale**. La version libre est
-GPLv3 (copyleft → contamine tout le produit edge) et annoncée *« not intended for
-production use »*. La version prod impose l'achat de la licence commerciale. Écrire une
-pile Rust native évite **et** la contamination GPLv3 **et** la redevance, **et** donne
-la pleine propriété de l'IP. Aucune pile PROFINET mûre n'existe en Rust (terrain neuf).
+`p-net` (rt-labs) is **dual-licensed GPLv3 + commercial**. The free version is
+GPLv3 (copyleft → contaminates the entire edge product) and advertised as
+*"not intended for production use"*. The production version requires purchasing a
+commercial licence. Writing a native Rust stack avoids **both** the GPLv3 contamination
+**and** the licensing fee, **and** gives full IP ownership. No mature PROFINET stack
+exists in Rust (new ground).
 
-> **Hygiène licence** : l'implémentation est **clean-room**. On n'incorpore aucun code
-> `p-net` (ni d'autre pile GPL). Référence = la **norme IEC 61158 / 61784 acquise
-> légalement** + le dissecteur Wireshark + nos propres captures.
+> **Licence hygiene**: the implementation is **clean-room**. No `p-net` code
+> (or any other GPL stack) is incorporated. Reference = the **legally acquired
+> IEC 61158 / 61784 standard** + the Wireshark dissector + our own captures.
 
 ## 5. Architecture
 
-### 5.1 Décomposition en couches
+### 5.1 Layer breakdown
 
-Chaque couche a une responsabilité unique, une interface définie, et est testable
-isolément.
+Each layer has a single responsibility, a defined interface, and can be tested
+in isolation.
 
-| Module | Responsabilité | Dépend de | Risque |
+| Module | Responsibility | Depends on | Risk |
 |---|---|---|---|
-| `eth` | E/S trames L2 EtherType `0x8892` via `AF_PACKET` (idéalement `PACKET_MMAP`), derrière un trait mockable | NIC | faible |
-| `dcp` | Discovery & Config Protocol : identify, set-name-of-station, set-IP, flash | `eth` | moyen |
-| `cm` (Context Manager) | DCE/RPC sur UDP 34964 : machine d'état de l'**AR** (Connect / Write / Read / Dcontrol / Ccontrol / Release), records | UDP | **élevé** |
-| `rt` | Échange cyclique **PPM** (producteur edge→PLC) / **CPM** (consommateur PLC→edge) : IOPS/IOCS, data status, cycle counter, watchdog consommateur | `eth` | **élevé** |
-| `alarm` | Canal alarmes RT minimal : Application-Ready, plug / return-of-submodule | `cm` | moyen |
-| `im` | Records **I&M0** (identification obligatoire) | `cm` | faible |
-| `config` | Modèle de config (slots / sous-modules + map de variables typées) ↔ GSDML | — | moyen |
-| `api` | `ProfinetDevice` + accesseurs typés, gestion de l'image d'E/S, état de l'AR | tous | — |
+| `eth` | L2 frame I/O EtherType `0x8892` via `AF_PACKET` (ideally `PACKET_MMAP`), behind a mockable trait | NIC | low |
+| `dcp` | Discovery & Config Protocol: identify, set-name-of-station, set-IP, flash | `eth` | medium |
+| `cm` (Context Manager) | DCE/RPC over UDP 34964: **AR** state machine (Connect / Write / Read / Dcontrol / Ccontrol / Release), records | UDP | **high** |
+| `rt` | Cyclic exchange **PPM** (producer edge→PLC) / **CPM** (consumer PLC→edge): IOPS/IOCS, data status, cycle counter, consumer watchdog | `eth` | **high** |
+| `alarm` | Minimal RT alarm channel: Application-Ready, plug / return-of-submodule | `cm` | medium |
+| `im` | **I&M0** records (mandatory identification) | `cm` | low |
+| `config` | Config model (slots / submodules + typed variable map) ↔ GSDML | — | medium |
+| `api` | `ProfinetDevice` + typed accessors, I/O image management, AR state | all | — |
 
-### 5.2 Modèle de threads (cœur du déterminisme)
+### 5.2 Thread model (core of determinism)
 
-- **Thread RT** : `SCHED_FIFO`, épinglé sur un cœur isolé (`isolcpus` / `nohz_full`),
-  IRQ de la NIC routées sur ce cœur. Il possède la boucle PPM/CPM cadencée au send
-  clock. **Contrainte dure : aucune allocation, aucun lock bloquant, aucun I/O
-  syscall lent dans cette boucle.**
-- **Thread acyclique** : priorité normale ; gère DCP, RPC/AR, alarmes, I&M.
-- **Échange RT ↔ application** : image d'E/S partagée via **double-buffer / seqlock**
-  (accès non bloquant côté RT), contrat de cohérence **par cycle**. L'application
-  consommatrice ne touche jamais au réseau.
+- **RT thread**: `SCHED_FIFO`, pinned to an isolated core (`isolcpus` / `nohz_full`),
+  NIC IRQs routed to that core. Owns the PPM/CPM loop clocked at the send clock.
+  **Hard constraint: no allocation, no blocking lock, no slow I/O syscall in this loop.**
+- **Acyclic thread**: normal priority; handles DCP, RPC/AR, alarms, I&M.
+- **RT ↔ application exchange**: shared I/O image via **double-buffer / seqlock**
+  (non-blocking access on the RT side), **per-cycle** coherence contract. The consuming
+  application never touches the network.
 
-### 5.3 Mapping des types (rappel : PROFINET = big-endian « Motorola »)
+### 5.3 Type mapping (note: PROFINET = big-endian "Motorola")
 
-PROFINET et la mémoire Siemens étant tous deux big-endian, **aucun word-swap** (à la
-différence de Modbus). Les données d'un sous-module sont un tableau d'octets, encadré
-par les octets de statut provider/consumer (IOPS/IOCS).
+Since both PROFINET and Siemens memory are big-endian, **no word-swap** is needed
+(unlike Modbus). A submodule's data is a byte array, bracketed by the
+provider/consumer status bytes (IOPS/IOCS).
 
-| Type | Taille | Encodage sur le fil |
+| Type | Size | Wire encoding |
 |---|---|---|
-| `BOOL` | 1 bit | bits packés (8/octet), exposés via index |
-| `INT` | 2 o | i16 big-endian |
-| `WORD` | 2 o | u16 big-endian |
-| `DINT` | 4 o | i32 big-endian |
-| `REAL` | 4 o | f32 IEEE-754 big-endian |
+| `BOOL` | 1 bit | packed bits (8/byte), exposed by index |
+| `INT` | 2 B | i16 big-endian |
+| `WORD` | 2 B | u16 big-endian |
+| `DINT` | 4 B | i32 big-endian |
+| `REAL` | 4 B | f32 IEEE-754 big-endian |
 
-Cas d'exemple (16 `REAL` + 32 `BOOL` par sens) : 64 + 4 = **68 octets** par sens, très
-en deçà des limites de trame RT (~1440 o).
+Example case (16 `REAL` + 32 `BOOL` per direction): 64 + 4 = **68 bytes** per direction,
+well within RT frame limits (~1440 B).
 
-### 5.4 Esquisse d'API publique
+### 5.4 Public API sketch
 
 ```rust
 let cfg = DeviceConfig::builder()
     .station_name("edge-reg-01")
-    .vendor_id(0x0000)          // ID de TEST en dev — à régulariser (voir §7)
+    .vendor_id(0x0000)          // TEST ID in dev — to be regularized (see §7)
     .device_id(0x0001)
     .send_clock(SendClock::Ms1)
     .input_submodule(Slot(1), &[Field::Real; 16])   // PLC -> edge
@@ -131,80 +131,79 @@ let cfg = DeviceConfig::builder()
 
 let dev = ProfinetDevice::start(cfg, "eth0")?;       // lance threads RT + acyclique
 
-// boucle de régulation (consommateur, HORS lib) :
-let pv:  f32     = dev.read_real(Slot(1), 0)?;       // dernière image cohérente
+// control loop (consumer, OUTSIDE lib):
+let pv:  f32     = dev.read_real(Slot(1), 0)?;       // latest consistent image
 let cmd: bool    = dev.read_bool(Slot(2), 5)?;
-dev.write_real(Slot(3), 0, mv)?;                     // publié au prochain cycle
+dev.write_real(Slot(3), 0, mv)?;                     // published on the next cycle
 let st:  ArState = dev.ar_state();                   // RUN / Offline / Connecting ...
 ```
 
-## 6. Flux de données & cycle de vie
+## 6. Data flow & lifecycle
 
-1. **Découverte** : l'IO-Controller (TIA) trouve le device via DCP, lui assigne
-   nom de station + IP.
-2. **Établissement AR** : DCE/RPC `Connect` → écriture des paramètres (records) →
-   `Dcontrol`/`Ccontrol` → alarme **Application-Ready** → AR en état **DATA/RUN**.
-3. **Échange cyclique** : CPM consomme les sorties du PLC (entrées du device),
-   PPM produit les sorties du device, à chaque tick du send clock ; gestion
-   IOPS/IOCS et data status.
-4. **Supervision** : watchdog consommateur (perte de trames → AR Offline) ;
-   reconnexion ; remontée d'alarmes.
-5. **Arrêt** : `Release` propre de l'AR.
+1. **Discovery**: the IO-Controller (TIA) finds the device via DCP, assigns
+   station name + IP.
+2. **AR establishment**: DCE/RPC `Connect` → parameter write (records) →
+   `Dcontrol`/`Ccontrol` → **Application-Ready** alarm → AR in **DATA/RUN** state.
+3. **Cyclic exchange**: CPM consumes the PLC outputs (device inputs),
+   PPM produces the device outputs, at every send clock tick; IOPS/IOCS and
+   data status handled.
+4. **Supervision**: consumer watchdog (frame loss → AR Offline);
+   reconnection; alarm reporting.
+5. **Shutdown**: clean AR `Release`.
 
-## 7. Gestion des erreurs & cas limites
+## 7. Error handling & edge cases
 
-- **Timeout d'AR** / refus du Controller → log explicite + retour à l'état Connecting.
-- **Watchdog consommateur** : absence de trames CPM au-delà de `cycle × ratio ×
-  facteur` → AR Offline, données figées + indicateur d'invalidité exposé à l'appli.
-- **Data status** : gestion PRIMARY/BACKUP et bit « problem indicator ».
-- **Vendor ID / Device ID** : ID de **test** en dev ; un device réellement déployé
-  doit obtenir un **Vendor ID légitime** auprès de PI (sinon risque de collision
-  réseau) — à régulariser avant tout déploiement large.
+- **AR timeout** / Controller rejection → explicit log + return to Connecting state.
+- **Consumer watchdog**: absence of CPM frames beyond `cycle × ratio ×
+  factor` → AR Offline, data frozen + invalidity indicator exposed to the application.
+- **Data status**: PRIMARY/BACKUP handling and "problem indicator" bit.
+- **Vendor ID / Device ID**: **test** IDs during development; a device actually deployed
+  must obtain a **legitimate Vendor ID** from PI (otherwise risk of network collision)
+  — must be regularised before any broad deployment.
 
-## 8. Stratégie de test
+## 8. Test strategy
 
-1. **Unitaires par couche** contre des **trames « golden »** capturées à Wireshark
-   (parse/serialize DCP, RPC, RT, alarmes) — en **TDD**.
-2. **Intégration** : harnais *mock IO-Controller* rejouant un échange capturé ;
-   tests ciblés de la machine d'état de l'AR.
-3. **Hardware-in-the-loop** : S7-1500 réel + TIA Portal → vérification automatisée
-   que l'AR atteint **RUN** et que les valeurs typées font l'aller-retour correctement.
-4. **Déterminisme** : mesure de la gigue du cycle sous charge (méthode type
-   `cyclictest`) sur l'edge, validation de la tenue du send clock 1 ms.
+1. **Per-layer unit tests** against **Wireshark-captured "golden" frames**
+   (parse/serialize DCP, RPC, RT, alarms) — in **TDD**.
+2. **Integration**: *mock IO-Controller* harness replaying a captured exchange;
+   targeted AR state machine tests.
+3. **Hardware-in-the-loop**: real S7-1500 + TIA Portal → automated verification
+   that the AR reaches **RUN** and that typed values round-trip correctly.
+4. **Determinism**: cycle jitter measurement under load (`cyclictest`-style method)
+   on the edge, validation that the 1 ms send clock is maintained.
 
-## 9. Risques & dépendances
+## 9. Risks & dependencies
 
-| Risque | Impact | Mitigation |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| Machine d'état de l'AR (n°1) | Le PLC n'atteint pas RUN | Captures Wireshark + montée incrémentale couche par couche |
-| Statuts IOPS/IOCS & data status | Données rejetées par le PLC | Tests golden + HIL tôt |
-| Correspondance GSDML ↔ config ingéniérée | Refus de connexion | GSDML d'exemple verrouillé, généré depuis la config |
-| Jitter NIC / driver sous Linux | Cycle 1 ms non tenu | NIC propre + `PACKET_MMAP`, isolation cœur, affinité IRQ, PREEMPT_RT |
-| Accès norme | Implémentation à l'aveugle | **Achat norme IEC 61158/61784** (en cours côté utilisateur) |
+| AR state machine (#1) | PLC does not reach RUN | Wireshark captures + incremental layer-by-layer bring-up |
+| IOPS/IOCS & data status | Data rejected by PLC | Golden tests + early HIL |
+| GSDML ↔ engineered config match | Connection refused | Example GSDML locked, generated from config |
+| NIC / driver jitter on Linux | 1 ms cycle not met | Dedicated NIC + `PACKET_MMAP`, core isolation, IRQ affinity, PREEMPT_RT |
+| Standard access | Implementation blind | **Purchase IEC 61158/61784 standard** (in progress on user's side) |
 
-### Dimension propriété intellectuelle / publication
+### Intellectual property / publication
 
-- **Implémenter le protocole** à partir de la norme = légal (clean-room ; un protocole
-  n'est pas protégeable, seul le *texte* de la norme l'est → ne pas le recopier).
-- **Marque** « PROFINET® » = propriété de PNO, usage réservé aux membres PI ; usage
-  **descriptif** autorisé. Pas de logo, pas de « certified ».
-- **Brevets** : exposition faible en RT classe 1 / CC-A (pas d'IRT/TSN), non nulle ;
-  revue juridique recommandée **avant industrialisation/distribution**.
-- **Publication open source** envisageable : crate `profinet-rt` (nom libre sur
-  crates.io), **double licence MIT/Apache-2.0**, **disclaimer de non-affiliation** PI,
-  **aucun texte de norme** ni code GPL dans le repo. *Rien n'est poussé en public avant
-  acquisition de la norme et validation finale du nom.*
+- **Implementing the protocol** from the standard = legal (clean-room; a protocol
+  is not protectable, only the *text* of the standard is → do not copy it).
+- **Trademark** "PROFINET®" = property of PNO, use reserved for PI members;
+  **descriptive** use permitted. No logo, no "certified".
+- **Patents**: low exposure for RT class 1 / CC-A (no IRT/TSN), not zero;
+  legal review recommended **before industrialisation/distribution**.
+- **Open-source publication** feasible: crate `profinet-rt` (name free on
+  crates.io), **dual MIT/Apache-2.0 licence**, **PI non-affiliation disclaimer**,
+  **no standard text** or GPL code in the repo. *Nothing pushed public before
+  the standard is acquired and the final name validated.*
 
-## 10. Évolutions possibles (hors périmètre actuel)
+## 10. Possible future extensions (out of current scope)
 
-- **CC-B** : ajout LLDP + données de topologie (diagnostic réseau enrichi).
-- Backend `eth` alternatif (XDP/AF_XDP) pour latence encore plus basse.
+- **CC-B**: add LLDP + topology data (enhanced network diagnostics).
+- Alternative `eth` backend (XDP/AF_XDP) for even lower latency.
 - Multi-AR / Shared-Device.
-- Cycles plus courts (500/250 µs) selon les mesures de gigue réelles.
+- Shorter cycles (500/250 µs) depending on actual jitter measurements.
 
-## 11. Nommage & livrables
+## 11. Naming & deliverables
 
-- Projet : `203-profinet-rt` — Crate : **`profinet-rt`**.
-- Livrables : la crate, le **GSDML d'exemple** (16 `REAL` + 32 `BOOL`), un binaire de
-  démonstration, la documentation de configuration et de déploiement (tuning
-  PREEMPT_RT).
+- Project: `203-profinet-rt` — Crate: **`profinet-rt`**.
+- Deliverables: the crate, the **example GSDML** (16 `REAL` + 32 `BOOL`), a demo
+  binary, configuration and deployment documentation (PREEMPT_RT tuning).

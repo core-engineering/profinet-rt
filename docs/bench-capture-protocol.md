@@ -1,76 +1,76 @@
-# Protocole de banc — captures PROFINET (vérité-terrain pour Plans 2-5)
+# Bench Protocol — PROFINET Captures (ground truth for Plans 2-5)
 
-But : capturer **côté IO-Device** une session PROFINET complète avec un pair conforme,
-pour alimenter les vecteurs de test des Plans 2-5 et valider les points ouverts
-(`FOLLOWUPS.md`, notamment l'ordre des bits BOOL LSB-first).
+Goal: capture a complete PROFINET session **on the IO-Device side** with a conformant peer,
+to feed the test vectors for Plans 2-5 and resolve open questions
+(`FOLLOWUPS.md`, notably the BOOL bit order LSB-first).
 
-## Topologie
+## Topology
 
 ```
-   S7-1500 physique  ───câble───  NIC PC Windows
+   S7-1500 physical  ───cable───  PC Windows NIC
    (IO-Controller)                (TIA + PLCSIM Advanced
-    192.168.1.60                   = PLC virtuel en I-Device
-    "io-controller"                = IO-Device = NOTRE modèle
+    192.168.1.60                   = virtual PLC as I-Device
+    "io-controller"                = IO-Device = OUR model
                                     192.168.1.61 "i-device")
                                         │
-                            capture Wireshark sur
+                            Wireshark capture on
                             "Siemens PLCSIM Virtual Ethernet Adapter"
 ```
 
-Avantage : l'adaptateur virtuel Siemens voit tout son trafic L2 → capture DCP + AR + RT
-**sans TAP ni switch managé**.
+Advantage: the Siemens virtual adapter sees all its L2 traffic → captures DCP + AR + RT
+**without a TAP or managed switch**.
 
-⚠️ Le timing/jitter PLCSIM n'est PAS représentatif (simu). La **structure des trames est
-fidèle** = suffisant pour Plans 2-5. La validation déterminisme < 2 ms (Plan 7) exigera le
-banc 100 % physique.
+⚠️ PLCSIM timing/jitter is NOT representative (simulation). The **frame structure is
+accurate** = sufficient for Plans 2-5. Determinism validation < 2 ms (Plan 7) will require a
+100% physical bench.
 
-## Plan d'adressage
+## Address Plan
 
-| Rôle | IP | NameOfStation |
+| Role | IP | NameOfStation |
 |---|---|---|
 | IO-Controller (S7-1500 1515-2 PN, FW V2.9) | 192.168.1.60 | `io-controller` |
-| I-Device (PLC virtuel PLCSIM Advanced) | 192.168.1.61 | `i-device` |
-| PC de capture (NIC) | 192.168.1.10 | — |
+| I-Device (virtual PLC PLCSIM Advanced) | 192.168.1.61 | `i-device` |
+| Capture PC (NIC) | 192.168.1.10 | — |
 
-Send clock : **1 ms**. Mapping d'exemple : **16 REAL + 32 BOOL par sens** (= 68 octets/sens).
+Send clock: **1 ms**. Example mapping: **16 REAL + 32 BOOL per direction** (= 68 bytes/direction).
 
 ## Capture
 
-- **Filtre de capture** (npcap/libpcap) :
+- **Capture filter** (npcap/libpcap):
   ```
   ether proto 0x8892 or vlan or udp port 34964
   ```
-- **Filtre d'affichage** Wireshark : `pn_dcp or pn_rt or pn_io or udp.port == 34964`
-- Wireshark a un dissecteur PROFINET natif → sert d'oracle pour valider notre décodage.
-- Équivalent edge (plus tard, quand la pile Rust tournera) :
+- **Wireshark display filter**: `pn_dcp or pn_rt or pn_io or udp.port == 34964`
+- Wireshark has a native PROFINET dissector → used as oracle to validate our decoding.
+- Edge equivalent (later, once the Rust stack is running):
   ```
   sudo tcpdump -i eth0 -w capture.pcap 'ether proto 0x8892 or vlan or udp port 34964'
   ```
 
-## Scénario (1 .pcapng par phase)
+## Scenario (1 .pcapng per phase)
 
-- [ ] **1. DCP Identify** — TIA → *Accessible devices*. Capturable sur la NIC du PC **sans
-      I-Device**. → Plan 2. Fichier : `dcp-identify.pcapng`
-- [ ] **2. DCP Set** — clic droit device → *Assign PROFINET device name*. → Plan 2.
-      Fichier : `dcp-set.pcapng`
-- [ ] **3. Connect / AR** — mise en RUN, montée de l'AR : RPC Connect / Write Record /
-      Dcontrol / Ccontrol (UDP 34964). → Plan 3. Fichier : `ar-connect.pcapng`
-- [ ] **4. Cyclique RT** — RUN stable ~5-10 s : PPM/CPM à 1 ms, IOPS/IOCS/data-status.
-      → Plan 4. **Valider ici l'ordre des bits BOOL (LSB-first).** Fichier : `rt-cyclic.pcapng`
-- [ ] **5. Alarme** — forcer un défaut (module retiré / voie forcée). → Plan 5.
-      Fichier : `alarm.pcapng`
-- [ ] **6. Déconnexion** — STOP propre. Fichier : `release.pcapng`
+- [ ] **1. DCP Identify** — TIA → *Accessible devices*. Capturable on the PC NIC **without
+      I-Device**. → Plan 2. File: `dcp-identify.pcapng`
+- [ ] **2. DCP Set** — right-click device → *Assign PROFINET device name*. → Plan 2.
+      File: `dcp-set.pcapng`
+- [ ] **3. Connect / AR** — transition to RUN, AR establishment: RPC Connect / Write Record /
+      Dcontrol / Ccontrol (UDP 34964). → Plan 3. File: `ar-connect.pcapng`
+- [ ] **4. Cyclic RT** — stable RUN ~5-10 s: PPM/CPM at 1 ms, IOPS/IOCS/data-status.
+      → Plan 4. **Validate BOOL bit order (LSB-first) here.** File: `rt-cyclic.pcapng`
+- [ ] **5. Alarm** — force a fault (module removed / channel forced). → Plan 5.
+      File: `alarm.pcapng`
+- [ ] **6. Disconnect** — clean STOP. File: `release.pcapng`
 
-Garder aussi des **extraits courts** (1-2 trames/type) pour des tests unitaires légers.
+Also keep **short excerpts** (1-2 frames/type) for lightweight unit tests.
 
-## Métadonnées à relever (référence clean-room)
+## Metadata to Record (clean-room reference)
 
-- [ ] Send clock + reduction ratio + temps de mise à jour du device
-- [ ] NameOfStation des deux côtés (confirmés ci-dessus)
-- [ ] Vendor ID / Device ID observés sur le fil
-- [ ] Présence d'un tag VLAN + priorité (souvent 6 pour RT)
-- [ ] **Export GSDML** du I-Device d'exemple → référence mapping déclaration → (octet, bit)
+- [ ] Send clock + reduction ratio + device update time
+- [ ] NameOfStation on both sides (confirmed above)
+- [ ] Vendor ID / Device ID observed on the wire
+- [ ] VLAN tag presence + priority (typically 6 for RT)
+- [ ] **GSDML export** of the example I-Device → reference for declaration mapping → (byte, bit)
 
-## Dépôt
+## Repository
 
-Captures dans `203-profinet-rt/captures/`. Rejouables par `capture::PcapFrames`.
+Captures in `203-profinet-rt/captures/`. Replayable via `capture::PcapFrames`.

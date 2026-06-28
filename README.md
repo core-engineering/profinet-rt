@@ -2,89 +2,89 @@
 
 [![CI](https://github.com/core-engineering/profinet-rt/actions/workflows/ci.yml/badge.svg)](https://github.com/core-engineering/profinet-rt/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
-![status](https://img.shields.io/badge/statut-pré--1.0%20(WIP)-orange)
+![status](https://img.shields.io/badge/status-pre--1.0%20(WIP)-orange)
 
-Pile **IO-Device PROFINET RT (classe 1 / Conformance Class A)** en **Rust pur**, pour Linux
-**PREEMPT_RT** — pensée pour fermer des boucles de régulation côté *edge* avec un automate
-S7‑1500 (IO‑Controller), cycle visé **< 2 ms**.
+**IO-Device PROFINET RT (Class 1 / Conformance Class A)** stack in **pure Rust**, for Linux
+**PREEMPT_RT** — designed to close control loops on the *edge* side with an S7‑1500
+(IO‑Controller), target cycle **< 2 ms**.
 
-> **Disclaimer.** Projet communautaire, **non affilié à, ni approuvé ou certifié par**
-> PROFIBUS & PROFINET International (PI). « PROFINET » est une marque déposée de PNO.
-> Cette bibliothèque est une implémentation **clean‑room** à partir de la norme publique
-> IEC 61158/61784. Aucun texte de norme n'y est reproduit.
+> **Disclaimer.** Community project, **not affiliated with, nor endorsed or certified by**
+> PROFIBUS & PROFINET International (PI). "PROFINET" is a registered trademark of PNO.
+> This library is a **clean‑room** implementation derived from the public standard
+> IEC 61158/61784. No normative text is reproduced herein.
 
-## Pourquoi
+## Why
 
-Les protocoles d'échange acycliques (S7comm, Modbus, OPC UA) ne conviennent pas à une
-**régulation déterministe** : il faut le canal **cyclique temps réel** de PROFINET. Les piles
-existantes posent des contraintes de licence (p. ex. `p-net` est en GPLv3 + commerciale). Ce
-projet vise une pile **réutilisable, sous double licence permissive**, dont on maîtrise l'IP.
+Acyclic exchange protocols (S7comm, Modbus, OPC UA) are unsuitable for
+**deterministic control**: the **real-time cyclic channel** of PROFINET is required. Existing
+stacks impose licensing constraints (e.g. `p-net` is GPLv3 + commercial). This project
+aims for a **reusable stack under a permissive dual license**, with full IP ownership.
 
-## État
+## Status
 
-Développement actif, **pré‑1.0**. Validé **byte‑exact** contre des captures réelles d'un
+Active development, **pre‑1.0**. Validated **byte‑exact** against real captures from an
 S7‑1500 (1515‑2 PN).
 
-| Brique | Module | État |
+| Layer | Module | Status |
 |---|---|---|
-| Couche L2 Ethernet (en‑tête + VLAN, transport AF_PACKET, mock) | `eth` | ✅ |
-| Harnais de rejeu de captures **pcap & pcapng** | `capture` | ✅ |
-| Codecs des types process (INT/WORD/DINT/REAL big‑endian, BOOL packé) | `data` | ✅ |
-| **DCP** côté device : Identify (parse requête + réponse byte‑exact, dispatch) | `dcp` | ✅ |
+| L2 Ethernet layer (header + VLAN, AF_PACKET transport, mock) | `eth` | ✅ |
+| **pcap & pcapng** capture replay harness | `capture` | ✅ |
+| Process type codecs (INT/WORD/DINT/REAL big‑endian, packed BOOL) | `data` | ✅ |
+| **DCP** device side: Identify (request parsing + byte-exact response, dispatch) | `dcp` | ✅ |
 | DCP Get / Set‑name / Set‑IP / Flash | `dcp` | ⏳ |
-| Établissement d'AR (DCE/RPC, machine d'état) | `cm` | ⏳ |
-| Échange cyclique RT (PPM/CPM, IOPS/IOCS, watchdog, thread `SCHED_FIFO`) | `rt` | ⏳ |
-| Alarmes + I&M | `alarm`/`im` | ⏳ |
-| Modèle de config + GSDML + API publique | `config` | ⏳ |
-| Intégration HIL + déterminisme (S7‑1500 réel, mesure de gigue) | — | ⏳ |
+| AR establishment (DCE/RPC, state machine) | `cm` | ⏳ |
+| RT cyclic exchange (PPM/CPM, IOPS/IOCS, watchdog, `SCHED_FIFO` thread) | `rt` | ⏳ |
+| Alarms + I&M | `alarm`/`im` | ⏳ |
+| Config model + GSDML + public API | `config` | ⏳ |
+| HIL integration + determinism (real S7‑1500, jitter measurement) | — | ⏳ |
 
 ## Architecture
 
-- **Rust pur**, pas de dépendance lourde ; tout est en **big‑endian** (format « Motorola »,
-  identique à la mémoire Siemens — pas de word‑swap).
-- Décomposition par couches du protocole (`eth` → `dcp` → `cm`/AR → `rt`/alarmes), chacune
-  testable indépendamment.
-- Cible runtime : Debian **PREEMPT_RT**, send clock 1 ms, thread RT `SCHED_FIFO`, image d'E/S
-  double‑buffer/seqlock (à venir avec la couche `rt`).
+- **Pure Rust**, no heavy dependencies; everything is **big‑endian** ("Motorola" format,
+  identical to Siemens memory — no word-swap).
+- Protocol layer decomposition (`eth` → `dcp` → `cm`/AR → `rt`/alarms), each layer
+  independently testable.
+- Runtime target: Debian **PREEMPT_RT**, 1 ms send clock, `SCHED_FIFO` RT thread, double-buffer/seqlock
+  I/O image (coming with the `rt` layer).
 
-## Démarrage rapide
+## Quick Start
 
 ```bash
 git clone https://github.com/core-engineering/profinet-rt.git
 cd profinet-rt
-cargo test          # suite unitaire + test d'intégration de rejeu de capture
+cargo test          # unit suite + capture-replay integration test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Le backend `AfPacketTransport` (sockets L2 brutes) nécessite Linux et la capability
-`CAP_NET_RAW` à l'exécution ; les tests qui en dépendent sont marqués `#[ignore]`.
+The `AfPacketTransport` backend (raw L2 sockets) requires Linux and the `CAP_NET_RAW`
+capability at runtime; tests that depend on it are marked `#[ignore]`.
 
-## Approche clean‑room
+## Clean‑room Approach
 
-L'implémentation est dérivée de la **norme IEC publique** (IEC 61158‑6‑10 pour le protocole,
-61158‑5‑10 pour les services, 61784‑2‑3 pour les profils RT) et de **captures Wireshark** de
-trafic réel. Les trames de référence (« golden frames ») et leur provenance sont documentées
-dans [`docs/dcp-golden-frames.md`](docs/dcp-golden-frames.md). Aucun code tiers sous copyleft
-n'est inclus.
+The implementation is derived from the **public IEC standard** (IEC 61158‑6‑10 for the
+protocol, 61158‑5‑10 for services, 61784‑2‑3 for RT profiles) and from **Wireshark captures**
+of real traffic. Reference frames ("golden frames") and their provenance are documented in
+[`docs/dcp-golden-frames.md`](docs/dcp-golden-frames.md). No third-party copyleft code is
+included.
 
-> ⚠️ Pour un déploiement réel, un **Vendor ID** légitime auprès de PI est requis (l'exemple
-> utilise des valeurs de test).
+> ⚠️ For a real deployment, a legitimate **Vendor ID** from PI is required (the example
+> uses test values).
 
 ## Documentation
 
-- Conception : [`docs/superpowers/specs/`](docs/superpowers/specs/)
-- Plans d'implémentation (TDD, tâche par tâche) : [`docs/superpowers/plans/`](docs/superpowers/plans/)
-- Bancs d'essai : [`docs/bench-capture-protocol.md`](docs/bench-capture-protocol.md),
+- Design: [`docs/superpowers/specs/`](docs/superpowers/specs/)
+- Implementation plans (TDD, task by task): [`docs/superpowers/plans/`](docs/superpowers/plans/)
+- Test benches: [`docs/bench-capture-protocol.md`](docs/bench-capture-protocol.md),
   [`docs/bench-pnet-device.md`](docs/bench-pnet-device.md)
 
-## Feuille de route
+## Roadmap
 
-`cm` (AR) → `rt` (cyclique 1 ms) → `alarm`/`im` → `config`/GSDML/API → intégration HIL &
-mesure de déterminisme. Détail dans les plans ci‑dessus.
+`cm` (AR) → `rt` (1 ms cyclic) → `alarm`/`im` → `config`/GSDML/API → HIL integration &
+determinism measurement. Details in the plans above.
 
-## Licence
+## License
 
-Au choix : [MIT](LICENSE-MIT) ou [Apache‑2.0](LICENSE-APACHE)
+Your choice: [MIT](LICENSE-MIT) or [Apache‑2.0](LICENSE-APACHE)
 (`SPDX: MIT OR Apache-2.0`).
 
-Sauf mention contraire, toute contribution soumise pour inclusion est sous cette double licence.
+Unless stated otherwise, any contribution submitted for inclusion is under this dual license.

@@ -21,7 +21,7 @@ pub enum EthError {
 }
 
 impl EthHeader {
-    /// Parse l'en-tête L2 ; renvoie (en-tête, offset du payload).
+    /// Parses the L2 header; returns (header, payload offset).
     pub fn parse(buf: &[u8]) -> Result<(Self, usize), EthError> {
         if buf.len() < 14 {
             return Err(EthError::TooShort);
@@ -54,7 +54,7 @@ impl EthHeader {
         ))
     }
 
-    /// Sérialise l'en-tête (sans le payload) dans `out`.
+    /// Serializes the header (without payload) into `out`.
     pub fn write(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(&self.dst.0);
         out.extend_from_slice(&self.src.0);
@@ -76,7 +76,7 @@ mod tests {
         0xfe,
     ];
 
-    // même trame avec tag VLAN 0x8100, TCI=0xE000 (prio 7), avant l'ethertype
+    // same frame with VLAN tag 0x8100, TCI=0xE000 (prio 7), before the ethertype
     const FRAME_VLAN: [u8; 20] = [
         0x01, 0x0e, 0xcf, 0x00, 0x00, 0x00, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x81, 0x00, 0xe0,
         0x00, 0x88, 0x92, 0xfe, 0xfe,

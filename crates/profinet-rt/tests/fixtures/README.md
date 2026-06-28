@@ -1,5 +1,5 @@
 # Fixtures golden-frames
 
-Déposer ici les captures Wireshark (`.pcap`) d'échanges PROFINET de référence
-(DCP, établissement AR, trames RT). Elles servent de vérité terrain aux tests
-des plans 2+ (parsing/sérialisation par couche).
+Place Wireshark captures (`.pcap`) of reference PROFINET exchanges here
+(DCP, AR establishment, RT frames). They serve as ground truth for the
+Plan 2+ tests (per-layer parsing/serialization).
