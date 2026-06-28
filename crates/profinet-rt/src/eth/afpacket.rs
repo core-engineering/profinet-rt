@@ -9,8 +9,10 @@ use nix::sys::socket::{
 use super::transport::{EthTransport, TransportError};
 use super::{ETHERTYPE_PROFINET, ETHERTYPE_VLAN};
 
-fn io_err<E: std::fmt::Display>(e: E) -> TransportError {
-    TransportError::Io(e.to_string())
+impl From<nix::errno::Errno> for TransportError {
+    fn from(e: nix::errno::Errno) -> Self {
+        TransportError::Io(std::io::Error::from(e))
+    }
 }
 
 /// Returns true if the raw frame is a PROFINET frame (VLAN-tagged or untagged).
@@ -44,11 +46,10 @@ impl AfPacketTransport {
             SockType::Raw,
             SockFlag::empty(),
             SockProtocol::EthAll,
-        )
-        .map_err(io_err)?;
+        )?;
 
         // Resolve interface name -> index.  Returns ENODEV if unknown.
-        let ifindex = nix::net::if_::if_nametoindex(ifname).map_err(io_err)?;
+        let ifindex = nix::net::if_::if_nametoindex(ifname)?;
 
         // nix 0.27 LinkAddr has no public constructor, so we build sockaddr_ll directly.
         let mut sll: libc::sockaddr_ll = unsafe { mem::zeroed() };
@@ -65,7 +66,7 @@ impl AfPacketTransport {
             )
         };
         if ret < 0 {
-            return Err(io_err(std::io::Error::last_os_error()));
+            return Err(TransportError::Io(std::io::Error::last_os_error()));
         }
 
         Ok(Self { fd })
@@ -74,7 +75,7 @@ impl AfPacketTransport {
 
 impl EthTransport for AfPacketTransport {
     fn send(&self, frame: &[u8]) -> Result<(), TransportError> {
-        send(self.fd.as_raw_fd(), frame, MsgFlags::empty()).map_err(io_err)?;
+        send(self.fd.as_raw_fd(), frame, MsgFlags::empty())?;
         Ok(())
     }
 
@@ -86,7 +87,7 @@ impl EthTransport for AfPacketTransport {
     /// loop requires it; `_timeout` is accepted but ignored for now.
     fn recv(&self, _timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError> {
         let mut buf = vec![0u8; 1522];
-        let n = recv(self.fd.as_raw_fd(), &mut buf, MsgFlags::empty()).map_err(io_err)?;
+        let n = recv(self.fd.as_raw_fd(), &mut buf, MsgFlags::empty())?;
         buf.truncate(n);
         if is_profinet_frame(&buf) {
             Ok(Some(buf))
