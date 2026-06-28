@@ -73,7 +73,7 @@ resolver = "2"
 edition = "2021"
 rust-version = "1.74"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/martinc8/profinet-rt"
+repository = "https://github.com/core-engineering/profinet-rt"
 ```
 
 `crates/profinet-rt/Cargo.toml` :
