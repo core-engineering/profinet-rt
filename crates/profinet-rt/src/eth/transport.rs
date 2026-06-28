@@ -5,13 +5,24 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum TransportError {
     #[error("io error: {0}")]
-    Io(String),
+    Io(#[from] std::io::Error),
 }
 
 /// Raw Ethernet frame I/O abstraction (L2 header included).
 pub trait EthTransport: Send + Sync {
     fn send(&self, frame: &[u8]) -> Result<(), TransportError>;
-    /// Returns `Ok(None)` if no frame is available before `timeout`.
+
+    /// Receive the next frame.
+    ///
+    /// Returns `Ok(None)` in three legitimate, non-error cases:
+    /// - the queue is empty (e.g. `MockTransport` with nothing pushed);
+    /// - no frame arrived before `timeout` elapsed (note: `AfPacketTransport` does
+    ///   not yet honor `timeout` and blocks until a frame arrives — deferred to Plan 4);
+    /// - the backend filters non-PROFINET traffic and the next frame on the wire
+    ///   was not PROFINET (e.g. `AfPacketTransport`).
+    ///
+    /// A receive loop should treat `Ok(None)` as "nothing for me right now" and
+    /// continue, distinct from `Err(_)` which is a real I/O failure.
     fn recv(&self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, TransportError>;
 }
 

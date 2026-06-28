@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+keywords = ["profinet", "industrial", "real-time", "ethernet", "plc"]
+categories = ["network-programming", "embedded"]
+readme = "../../README.md"
 
 [dependencies]
 libc = "0.2"
